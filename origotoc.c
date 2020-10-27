@@ -443,7 +443,7 @@
 
   rstring* retFileName = NULL;
   rstring* cFileName = NULL;
-  rstring* defFileName = NULL;
+  rstring* impFileName = NULL;
   rstring* exeFileName = NULL;
 
   RetFile* retSource = NULL;
@@ -465,6 +465,16 @@
       retFileName = NULL;
     }
 
+    if( cFileName ) {
+      free( cFileName );
+      cFileName = NULL;
+    }
+
+    if( impFileName ) {
+      free( impFileName );
+      impFileName = NULL;
+    }
+
     if( exeFileName ) {
       free( exeFileName );
       exeFileName = NULL;
@@ -477,17 +487,17 @@
 
   rstring* RemoveFileExtension( rstring* fileName ) {
     rstring* newStr = NULL;
-    size_t pathNameLength = 0;
+    size_t extIndex = 0;
 
     if( fileName && rstrlen(fileName) ) {
-      pathNameLength = rrevscan(fileName, '.');
-      if( pathNameLength == -1 ) {
-        pathNameLength = rstrlen(fileName);
+      extIndex = rrevscan(fileName, '.');
+      if( extIndex == -1 ) {
+        extIndex = rstrlen(fileName);
       } else {
-        pathNameLength--;
+        extIndex--;
       }
 
-      newStr = rsubstr(fileName, 0, pathNameLength);
+      newStr = rsubstr(fileName, 0, extIndex);
     }
 
     return newStr;
@@ -524,6 +534,7 @@ int main( int argc, char* argv[] ) {
   } else {
     arg2 = RemoveFileExtension(arg1);
   }
+printf( "arg1 == %s; arg2 == %s\n", rstrtext(arg1), rstrtext(arg2) );
 
   // Determine Retineo source name
   scanIndex = rrevscan(arg1, '.');
@@ -535,18 +546,28 @@ int main( int argc, char* argv[] ) {
     retFileName = rsubstr(arg1, 0, scanIndex - 1);
   } else {
     // Default: Set Retineo source name to argv[1]
-    retFileName = arg1;
-    arg1 = NULL;
-  }
-  if( retFileName == NULL ) {
-    ///TODO: Error if retFileName is NULL
+    retFileName = rstrcopy(arg1);
   }
 
   // Determine C source name
+  cFileName = RemoveFileExtension(arg1);
 
   // Determine DLL import file name
+  impFileName = RemoveFileExtension(arg1);
 
   // Determine Executable name
+  scanIndex = rrevscan(arg2, '.');
+  if( scanIndex == -1 ) {
+    // Case 1: Extension not specified
+    exeFileName = rstrappendc(arg2, ".exe", 4);
+  } else if( (scanIndex + 1) == rstrlen(arg2) ) {
+    // Case 2: Extension only has the dot
+    exeFileName = rsubstr(arg2, 0, scanIndex - 1);
+  } else {
+    // Default: Set Executable name to argv[2]
+    exeFileName = rstrcopy(arg2);
+  }
+printf( "exeFileName == %s; arg2 == %s\n", rstrtext(exeFileName), rstrtext(arg2) );
 
   // Release temporary argv string 1
   if( arg1 ) {
