@@ -1,0 +1,313 @@
+
+==
+
+program IDENT
+
+// program IDENT
+#include "IDENT.H"
+
+==
+
+type @TYPENAME[CEXPR, ...] IDENT = CEXPR
+
+#define DEFAULT_IDENT (CEXPR)
+typedef TYPENAME[CEXPR,...]* IDENT;
+
+==
+
+struct IDENT
+  TYPESPEC IDENT, ...
+  union (TYPESPEC, ...) IDENT, ...
+  ...
+end
+
+typedef struct IDENT
+  TYPESPEC IDENT, ...;
+  ...
+} IDENT;
+
+==
+
+const TYPESPEC IDENT = CEXPR
+
+static const TYPESPEC IDENT = CEXPR;
+
+==
+
+var
+  TYPESPEC IDENT, ... = CEXPR
+  ...
+end
+
+TYPESPEC IDENT = CEXPR;
+TYPESPEC ... = CEXPR;
+...
+
+==
+
+func TYPESPEC IDENT( TYPESPEC IDENT, ... )
+  var
+    TYPESPEC IDENT, ... = CEXPR
+    ...
+  end
+
+  STATEMENTS
+  result ASSIGNOP EXPR
+  return EXPR
+  ...
+end
+
+TYPESPEC IDENT( TYPESPEC IDENT, TYPESPEC ..., ... ) {
+  TYPESPEC IDENT = CEXPR;
+  TYPESPEC ... = CEXPR;
+  ...
+  result = DEFAULT;
+
+  STATEMENTS;
+  result ASSIGNOP EXPR;
+  return result;
+}
+
+==
+
+import TYPESPEC IDENT( TYPESPEC IDENT, ... )
+  from FILENAME as IDENT
+
+extern TYPESPEC IDENT( TYPESPEC IDENT, TYPESPEC ..., ... );
+// PROGNAME.def
+extern IMPORTNAME, FILENAME
+
+==
+
+object IDENT
+  inherits OBJNAME, ...
+mutable
+immutable
+  TYPESPEC IDENT, ...
+  ...
+end
+
+typedef struct IDENT {
+  // Copy OBJNAME, ... members
+  TYPESPEC IDENT, ...;
+} IDENT;
+
+==
+
+abstract IDENT
+  implements OBJNAME
+  inherits IFNAME, ...
+
+  method TYPESPEC IDENT( TYPESPEC IDENT, ... )
+end
+
+typedef struct IDENT {
+  // Copy IFNAME, ...
+  TYPESPEC (*MTHDNAME)IDENT( TYPESPEC IDENT, TYPESPEC ..., ... );
+  ...
+} IDENT;
+
+==
+
+interface IDENT
+  implements OBJNAME
+  inherits IFNAME, ...
+
+  method TYPESPEC IDENT( TYPESPEC IDENT, ... )
+end
+
+// Change internal references
+
+==
+
+method IFNAME.MTHDNAME( TYPESPEC IDENT, ... )
+  var
+    TYPESPEC IDENT = CEXPR, ... = CEXPR
+    ...
+  end
+
+  STATEMENTS
+  OBJSTATEMENTS
+  result ASSIGNOP EXPR
+  return EXPR
+end
+
+TYPESPEC IFNAME_MTHDNAME( TYPESPEC IDENT, TYPESPEC ..., ... ) {
+  TYPESPEC IDENT = CEXPR;
+  TYPESPEC ... = CEXPR;
+  ...
+  result = DEFAULT;
+
+  STATEMENTS;
+  result ASSIGNOP EXPR;
+  return EXPR;
+}
+
+==
+
+operator TYPESPEC OPER( TYPESPEC VALUE, ... )
+  var
+    TYPESPEC IDENT, ... = CEXPR
+    ...
+  end
+
+  STATEMENTS
+  result ASSIGNOP EXPR
+  return EXPR
+end
+
+TYPESPEC OPERNAME( TYPESPEC VALUE, TYPESPEC ..., ... ) {
+  result = DEFAULT;
+
+  STATEMENTS;
+  result ASSIGNOP EXPR;
+  return result;
+}
+
+==
+
+run
+  var
+    TYPESPEC IDENT, ... = CEXPR
+  end
+
+  STATEMENTS
+end
+
+int paramCount = 0;
+char** param = NULL;
+int main( int argc, char* argv[] ) {
+  paramCount = argc;
+  param = argv;
+
+  return 0;
+}
+
+==
+
+FUNCCALL( EXPR, ... )
+
+FUNCCALL( EXPR, ... );
+
+==
+
+METHODCALL( EXPR, ... )
+
+METHODCALL( EXPR, ..., OBJVAR );
+
+==
+
+bind( OBJVAR, IFNAME, ... )
+
+memcpy( IFVAR, IFNAME, sizeof(IFNAME) );
+
+==
+
+VARREF ASSIGNOP EXPR
+
+VARREF ASSIGNOP EXPR;
+
+==
+
+if CONDITION then STATEMENT
+
+if( CONDITION ) {
+  STATEMENT;
+}
+
+==
+
+if CONDITION
+  STATEMENTS
+elseif CONDITION
+  STATEMENTS
+else
+  STATEMENTS
+endif
+
+if( CONDITION ) {
+  STATEMENTS;
+} else if( CONDITION ) {
+  STATEMENTS;
+} else {
+  STATEMENTS;
+}
+
+==
+
+for VARREF in [CEXPR, ...]
+  STATEMENTS
+  next
+  break
+endfor
+
+for( indexVARNAME = 0; indexVARNAME < MAX_VARNAME; indexVARNAME++ ) {
+  valueVARNAME = constVARNAME[indexVARNAME];
+
+  STATEMENTS;
+  continue;
+  break;
+}
+
+==
+
+for VARREF = EXPR to EXPR
+  STATEMENTS
+  next
+  break
+endfor
+
+for( VARREF = EXPR; VARREF < EXPR; VARREF++ ) {
+  STATEMENTS;
+  continue;
+  break;
+}
+
+==
+
+echo( EXPR, ... )
+
+printf( STRFMT, EXPR, ... );
+
+==
+
+echoln( EXPR, ... )
+
+printf( STRFMT"\n", EXPR, ... );
+
+==
+
+repeat
+  STATEMENTS
+  next
+  break
+when CONDITION
+
+do {
+  STATEMENTS;
+  continue;
+  break;
+} while( !(CONDITION) );
+
+==
+
+while CONDITION
+  STATEMENTS
+  next
+  break
+endwhile
+
+while( CONDITION ) {
+  STATEMENTS;
+  continue;
+  break;
+}
+
+==
+
+:Label
+
+Label:
+
+==
+

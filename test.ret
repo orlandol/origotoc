@@ -1,0 +1,13 @@
+
+/*
+  Multi-line
+  /* nested */
+  Comment
+*/
+
+// Single line comment
+
+program test
+
+run
+end
