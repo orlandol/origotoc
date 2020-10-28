@@ -235,7 +235,8 @@
     unableToCreate,
     unableToRun,
     unableToBuild,
-    unableToLink
+    unableToLink,
+    stringOperationFailed
   };
 
   void Error( unsigned errorCode, char* errorText );
@@ -492,12 +493,15 @@
     if( fileName && rstrlen(fileName) ) {
       extIndex = rrevscan(fileName, '.');
       if( extIndex == -1 ) {
-        extIndex = rstrlen(fileName);
+        // Case 1: Extension not specified
+        newStr = rstrcopy(fileName);
+      } else if( (extIndex + 1) == rstrlen(fileName) ) {
+        // Case 2: Extension only has the dot
+        newStr = rsubstr(fileName, 0, extIndex - 1);
       } else {
-        extIndex--;
+        // Default: File name has the full extension
+        newStr = rsubstr(fileName, 0, extIndex - 1);
       }
-
-      newStr = rsubstr(fileName, 0, extIndex);
     }
 
     return newStr;
@@ -534,7 +538,6 @@ int main( int argc, char* argv[] ) {
   } else {
     arg2 = RemoveFileExtension(arg1);
   }
-printf( "arg1 == %s; arg2 == %s\n", rstrtext(arg1), rstrtext(arg2) );
 
   // Determine Retineo source name
   scanIndex = rrevscan(arg1, '.');
@@ -551,9 +554,23 @@ printf( "arg1 == %s; arg2 == %s\n", rstrtext(arg1), rstrtext(arg2) );
 
   // Determine C source name
   cFileName = RemoveFileExtension(arg1);
+  tempStr = rstrappendc(cFileName, ".c", 2);
+  if( tempStr == NULL ) {
+    rstrfree( &arg1 );
+    rstrfree( &arg2 );
+    Error( stringOperationFailed, "C file name" );
+  }
+  cFileName = tempStr;
 
   // Determine DLL import file name
   impFileName = RemoveFileExtension(arg1);
+  tempStr = rstrappendc(impFileName, ".def", 2);
+  if( tempStr == NULL ) {
+    rstrfree( &arg1 );
+    rstrfree( &arg2 );
+    Error( stringOperationFailed, "Import file name" );
+  }
+  impFileName = tempStr;
 
   // Determine Executable name
   scanIndex = rrevscan(arg2, '.');
@@ -567,38 +584,15 @@ printf( "arg1 == %s; arg2 == %s\n", rstrtext(arg1), rstrtext(arg2) );
     // Default: Set Executable name to argv[2]
     exeFileName = rstrcopy(arg2);
   }
-printf( "exeFileName == %s; arg2 == %s\n", rstrtext(exeFileName), rstrtext(arg2) );
 
-  // Release temporary argv string 1
-  if( arg1 ) {
-    free( arg1 );
-    arg1 = NULL;
-  }
-
-  // Release temporary argv string 2
-  if( arg2 ) {
-    free( arg2 );
-    arg2 = NULL;
-  }
+  // Release temporary argv strings
+  rstrfree( &arg1 );
+  rstrfree( &arg2 );
 
   /* Open and create files */
   retSource = OpenRet(rstrtext(retFileName), rstrlen(retFileName));
   if( retSource == NULL ) {
     Error( unableToOpen, rstrtext(retFileName) );
-  }
-
-  /* Determine binary file name */
-  if( argc >= 3 ) {
-    exeFileName = rstrcopyc(argv[2], 0);
-  } else {
-    scanIndex = rrevscan(retFileName, '.');
-    if( scanIndex != -1 ) {
-      exeFileName = rsubstr(retFileName, 0, scanIndex - 1);
-    }
-  }
-  tmpFileName = rstrappendc(exeFileName, ".exe", 0);
-  if( tmpFileName ) {
-    exeFileName = tmpFileName;
   }
 
   /* Parse Retineo source */
@@ -719,7 +713,8 @@ printf( "exeFileName == %s; arg2 == %s\n", rstrtext(exeFileName), rstrtext(arg2)
     "Unable to create",
     "Unable to run",
     "Unable to build",
-    "Unable to link"
+    "Unable to link",
+    "String operation failed"
   };
 
   const size_t errorCount = sizeof(errorString) / sizeof(errorString[0]);
