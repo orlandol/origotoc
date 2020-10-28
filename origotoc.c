@@ -16,7 +16,7 @@
  *  Token declarations
  */
 
-  typedef enum _Token {
+  typedef enum Token {
     // General tokens
     tkGeneral = (0 << 9),
       tkEOF,
@@ -71,14 +71,16 @@
       rsvdIn,
       rsvdExit,
 
-    // Base type tokens
-    baseType = (2 << 9),
-      baseInt,
-        firstBaseType = baseInt,
-      baseUint,
-      baseChar,
-      baseBool,
-        lastBaseType = baseBool,
+    // Type tokens
+    typeDecl = (2 << 9),
+      typeInt,
+        firstType = typeInt,
+      typeUint,
+      typeChar,
+      typeString,
+      typeBool,
+      typeStruct,
+        lastType = typeStruct,
 
     // Literal value tokens
     valImmediate = (3 << 9),
@@ -100,7 +102,11 @@
           firstValChar = valChar,
           lastValChar = valChar,
 
-      valBool = (valImmediate + (3 << 5)),
+      valString = (valImmediate + (3 << 5)),
+          firstValString = valString,
+          lastValString = valString,
+
+      valBool = (valImmediate + (4 << 5)),
           firstValBool = valBool,
           lastValBool = valBool,
 
@@ -292,12 +298,14 @@
     unsigned uVal;
     int iVal;
     char chVal;
-    char* strVal;
+    rstring* strVal;
     struct {
       uint8_t* dataVal;
       size_t dataSize;
     };
   } TokenVal;
+
+  void ClearTokenVal( Token valType, TokenVal* tokenVal );
 
   typedef struct TypeSpec {
     // <ptrRef '#' | ptrData '@'>
@@ -403,6 +411,8 @@
 
   unsigned ReadTypeSpec( RetFile* source, TypeSpec* destSpec );
 
+  unsigned GetToken();
+
 /*
  *  Expression parser declarations
  */
@@ -411,14 +421,14 @@
  *  Parser declarations
  */
 
-  typedef struct _IfStack {
+  typedef struct IfStack {
     unsigned block;
     unsigned currentIf;
     unsigned nextIf;
     unsigned endIf;
   } IfStack;
 
-  typedef struct _LoopStack {
+  typedef struct LoopStack {
   } LoopStack;
 
   void ParseProgramHeader();
@@ -428,10 +438,10 @@
   void ParseNewType();
   void ParseImport();
 
-  void ParseIf( SymTable* localSymTab, IfStack* ifStack );
-  void ParseFor( SymTable* localSymTab, LoopStack* loopStack );
+  void ParseIf();
+  void ParseFor();
 
-  void ParseStatement( SymTable* localSymTab );
+  void ParseStatement();
 
   void ParseRun();
   void ParseRunEnd();
@@ -444,12 +454,26 @@
 
   rstring* retFileName = NULL;
   rstring* cFileName = NULL;
+  rstring* cIncName = NULL;
   rstring* impFileName = NULL;
   rstring* exeFileName = NULL;
 
   RetFile* retSource = NULL;
 
   SymTable* symTab = NULL;
+  SymTable* localTab = NULL;
+
+  rstring* curIdent = NULL;
+  TokenVal curVal = {};
+  unsigned curLine = 0;
+  unsigned curColumn = 0;
+  unsigned curToken = 0;
+
+  rstring* nextIdent = NULL;
+  TokenVal nextVal = {};
+  unsigned nextLine = 0;
+  unsigned nextColumn = 0;
+  unsigned nextToken = 0;
 
   void PrintBanner() {
     printf( "\nOrigo to C Alpha\n" );
@@ -461,29 +485,22 @@
   }
 
   void Cleanup() {
-    if( retFileName ) {
-      free( retFileName );
-      retFileName = NULL;
-    }
+    rstrfree( &curIdent );
+    rstrfree( &nextIdent );
 
-    if( cFileName ) {
-      free( cFileName );
-      cFileName = NULL;
-    }
+    ClearTokenVal( curToken, &curVal );
+    ClearTokenVal( nextToken, &nextVal );
 
-    if( impFileName ) {
-      free( impFileName );
-      impFileName = NULL;
-    }
-
-    if( exeFileName ) {
-      free( exeFileName );
-      exeFileName = NULL;
-    }
+    rstrfree( &retFileName );
+    rstrfree( &cFileName );
+    rstrfree( &cIncName );
+    rstrfree( &impFileName );
+    rstrfree( &exeFileName );
 
     CloseRet( &retSource );
 
     ReleaseSymTab( &symTab );
+    ReleaseSymTab( &localTab );
   }
 
   rstring* RemoveFileExtension( rstring* fileName ) {
@@ -495,15 +512,11 @@
       if( extIndex == -1 ) {
         // Case 1: Extension not specified
         newStr = rstrcopy(fileName);
-      } else if( (extIndex + 1) == rstrlen(fileName) ) {
-        // Case 2: Extension only has the dot
-        newStr = rsubstr(fileName, 0, extIndex - 1);
       } else {
-        // Default: File name has the full extension
+        // Default: Extension specified
         newStr = rsubstr(fileName, 0, extIndex - 1);
       }
     }
-
     return newStr;
   };
 
@@ -539,6 +552,7 @@ int main( int argc, char* argv[] ) {
     arg2 = RemoveFileExtension(arg1);
   }
 
+  /* Initialize file names */
   // Determine Retineo source name
   scanIndex = rrevscan(arg1, '.');
   if( scanIndex == -1 ) {
@@ -552,7 +566,7 @@ int main( int argc, char* argv[] ) {
     retFileName = rstrcopy(arg1);
   }
 
-  // Determine C source name
+  // Determine C file name
   cFileName = RemoveFileExtension(arg1);
   tempStr = rstrappendc(cFileName, ".c", 2);
   if( tempStr == NULL ) {
@@ -561,6 +575,16 @@ int main( int argc, char* argv[] ) {
     Error( stringOperationFailed, "C file name" );
   }
   cFileName = tempStr;
+
+  // Determine C include name
+  cIncName = RemoveFileExtension(arg1);
+  tempStr = rstrappendc(cIncName, ".inc", 2);
+  if( tempStr == NULL ) {
+    rstrfree( &arg1 );
+    rstrfree( &arg2 );
+    Error( stringOperationFailed, "C include name" );
+  }
+  cIncName = tempStr;
 
   // Determine DLL import file name
   impFileName = RemoveFileExtension(arg1);
@@ -598,13 +622,20 @@ int main( int argc, char* argv[] ) {
   /* Parse Retineo source */
   printf( "\nParsing '%s'...\n", rstrtext(retFileName) );
 
-  printf( "\n" );
-
   ParseProgramHeader();
   ParseTopLevel();
   EndParse();
 
   CloseRet( &retSource );
+
+//  printf( "\nDone.\n" );
+  printf( "\n" );
+
+  /* Compile generated C source */
+  printf( "\nBuilding '%s'...\n", rstrtext(exeFileName) );
+
+//  printf( "\nDone.\n" );
+  printf( "\n" );
 
   /* Release resources */
   Cleanup();
@@ -1155,6 +1186,21 @@ int main( int argc, char* argv[] ) {
 /*
  *  Type specifier implementation
  */
+  void ClearTokenVal( Token valType, TokenVal* tokenVal ) {
+    if( tokenVal ) {
+      switch( valType ) {
+      case typeString:
+        rstrfree( &(tokenVal->strVal) );
+        break;
+
+      case typeStruct:
+        free( &(tokenVal->dataVal) );
+        break;
+      }
+
+      memset( tokenVal, 0, sizeof(TokenVal) );
+    }
+  }
 
 /*
  *  Symbol table implementation
@@ -1739,6 +1785,64 @@ int main( int argc, char* argv[] ) {
     return 0;
   }
 
+  unsigned GetToken() {
+    rstring* tmpIdent = NULL;
+    unsigned hashCode = 0;
+    char nextCh = '\0';
+
+    if( retSource == NULL ) {
+      return 0;
+    }
+
+    /* Swap current and next tokens/values/etc */
+    // Identifiers
+    rstrclear( curIdent );
+    tmpIdent = curIdent;
+    curIdent = nextIdent;
+    nextIdent = tmpIdent;
+
+    // Token values
+    ClearTokenVal( curToken, &curVal );
+    curVal = nextVal;
+    ClearTokenVal( nextToken, &nextVal );
+
+    // Character position
+    curLine = nextLine;
+    curColumn = nextColumn;
+
+    // Token codes
+    curToken = nextToken;
+    nextToken = 0;
+
+    /* Determine token type to read */
+    nextCh = retSource->nextCh;
+
+    if( (nextCh == '_') || isalnum(nextCh) ) {
+      if( ReadIdent(retSource, &nextIdent, &hashCode) ) {
+        nextToken = tkIdent;
+      }
+      return curToken;
+    }
+
+    if( isdigit(nextCh) ) {
+      if( ReadNum(retSource, &nextVal.uVal) ) {
+        nextToken = valUint;
+      }
+      return curToken;
+    }
+
+    if( (nextCh == '"') || (nextCh == '\'') ) {
+      if( ReadString(retSource, &nextVal.strVal, &hashCode) ) {
+        nextToken = valString;
+      }
+      return curToken;
+    }
+
+    nextToken = ReadOperator(retSource);
+
+    return curToken;
+  }
+
 /*
  *  Expression parser implementation
  */
@@ -1808,7 +1912,7 @@ int main( int argc, char* argv[] ) {
   void ParseImport() {
   }
 
-  void ParseIf( SymTable* localSymTab, IfStack* ifStack ) {
+  void ParseIf() {
     ///TODO: IfStack usage [draft]
 
     //  if COND
@@ -1835,10 +1939,10 @@ int main( int argc, char* argv[] ) {
     //  endif
   }
 
-  void ParseFor( SymTable* localSymTab, LoopStack* loopStack ) {
+  void ParseFor() {
   }
 
-  void ParseStatement( SymTable* localSymTab ) {
+  void ParseStatement() {
   }
 
   void ParseRun() {
