@@ -1287,6 +1287,9 @@ int main( int argc, char* argv[] ) {
     newSource->line = 1;
     newSource->column = 1;
 
+    GetToken();
+    GetToken();
+
     return newSource;
 
   ReturnError:
@@ -1813,6 +1816,12 @@ int main( int argc, char* argv[] ) {
     // Token codes
     curToken = nextToken;
     nextToken = 0;
+
+    /* Skip comments/space and capture line/column */
+    SkipComments( retSource );
+
+    nextLine = retSource->line;
+    nextColumn = retSource->column;
 
     /* Determine token type to read */
     nextCh = retSource->nextCh;
