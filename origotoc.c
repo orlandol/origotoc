@@ -398,14 +398,14 @@
   bool SkipSpace( RetFile* source );
   bool SkipComments( RetFile* source );
 
-  bool ReadIdent( RetFile* source, rstring** ident, unsigned* hashCode );
+  bool ReadIdent( RetFile* source, rstring** ident );
 
   bool ReadBinNum( RetFile* source, unsigned* num );
   bool ReadOctalNum( RetFile* source, unsigned* num );
   bool ReadHexNum( RetFile* source, unsigned* num );
   bool ReadNum( RetFile* source, unsigned* num );
 
-  bool ReadString( RetFile* source, rstring** string, unsigned* hashCode );
+  bool ReadString( RetFile* source, rstring** string );
 
   unsigned ReadOperator( RetFile* source );
 
@@ -416,6 +416,23 @@
 /*
  *  Expression parser declarations
  */
+
+/*
+ *  C generation declarations
+ */
+
+  typedef struct CGen {
+    FILE* cHandle;
+    FILE* cIncludeHandle;
+    rstring* cFileName;
+    rstring* cIncludeName;
+    bool runDeclared;
+  } CGen;
+
+  CGen* CreateC( char* fileName, size_t nameLength );
+  void CloseC( CGen** source );
+
+  bool GenTypeSpec( CGen* csource, TypeSpec* typeSpec );
 
 /*
  *  Parser declarations
@@ -454,14 +471,12 @@
 
   rstring* retFileName = NULL;
   rstring* cFileName = NULL;
-  rstring* cIncName = NULL;
-  rstring* impFileName = NULL;
   rstring* exeFileName = NULL;
 
   RetFile* retSource = NULL;
+  CGen* cSourceGen = NULL;
 
   SymTable* symTab = NULL;
-  SymTable* localTab = NULL;
 
   rstring* curIdent = NULL;
   TokenVal curVal = {};
@@ -493,14 +508,12 @@
 
     rstrfree( &retFileName );
     rstrfree( &cFileName );
-    rstrfree( &cIncName );
-    rstrfree( &impFileName );
     rstrfree( &exeFileName );
 
     CloseRet( &retSource );
+    CloseC( &cSourceGen );
 
     ReleaseSymTab( &symTab );
-    ReleaseSymTab( &localTab );
   }
 
   rstring* RemoveFileExtension( rstring* fileName ) {
@@ -566,35 +579,15 @@ int main( int argc, char* argv[] ) {
     retFileName = rstrcopy(arg1);
   }
 
-  // Determine C file name
+  // Derive C file name
   cFileName = RemoveFileExtension(arg1);
-  tempStr = rstrappendc(cFileName, ".c", 2);
+  tempStr = rstrappendc(cFileName, ".rgc", 2);
   if( tempStr == NULL ) {
     rstrfree( &arg1 );
     rstrfree( &arg2 );
     Error( stringOperationFailed, "C file name" );
   }
   cFileName = tempStr;
-
-  // Determine C include name
-  cIncName = RemoveFileExtension(arg1);
-  tempStr = rstrappendc(cIncName, ".inc", 2);
-  if( tempStr == NULL ) {
-    rstrfree( &arg1 );
-    rstrfree( &arg2 );
-    Error( stringOperationFailed, "C include name" );
-  }
-  cIncName = tempStr;
-
-  // Determine DLL import file name
-  impFileName = RemoveFileExtension(arg1);
-  tempStr = rstrappendc(impFileName, ".def", 2);
-  if( tempStr == NULL ) {
-    rstrfree( &arg1 );
-    rstrfree( &arg2 );
-    Error( stringOperationFailed, "Import file name" );
-  }
-  impFileName = tempStr;
 
   // Determine Executable name
   scanIndex = rrevscan(arg2, '.');
@@ -619,8 +612,16 @@ int main( int argc, char* argv[] ) {
     Error( unableToOpen, rstrtext(retFileName) );
   }
 
+  cSourceGen = CreateC(rstrtext(cFileName), rstrlen(cFileName));
+  if( cSourceGen == NULL ) {
+    Error( unableToCreate, rstrtext(cFileName) );
+  }
+
   /* Parse Retineo source */
   printf( "\nParsing '%s'...\n", rstrtext(retFileName) );
+
+  GetToken();
+  GetToken();
 
   ParseProgramHeader();
   ParseTopLevel();
@@ -632,7 +633,7 @@ int main( int argc, char* argv[] ) {
   printf( "\n" );
 
   /* Compile generated C source */
-  printf( "\nBuilding '%s'...\n", rstrtext(exeFileName) );
+  printf( "\nBuilding '%s' from '%s'...\n", rstrtext(exeFileName), rstrtext(cFileName) );
 
 //  printf( "\nDone.\n" );
   printf( "\n" );
@@ -699,7 +700,7 @@ int main( int argc, char* argv[] ) {
 
   // Logic warning reporting
   const char* warningString[] = {
-    "No warning"
+    ""
   };
 
   const size_t warningCount = sizeof(warningString) / sizeof(warningString[0]);
@@ -714,7 +715,7 @@ int main( int argc, char* argv[] ) {
 
   // Syntax error reporting
   const char* expectedString[] = {
-    "Nothing",
+    "",
     "program",
     "undeclared identifier",
     "type, newtype, import, or run",
@@ -738,7 +739,7 @@ int main( int argc, char* argv[] ) {
 
   // Program error reporting
   const char* errorString[] = {
-    "No error",
+    "",
     "Set exit handler failed",
     "Unable to open",
     "Unable to create",
@@ -1287,9 +1288,6 @@ int main( int argc, char* argv[] ) {
     newSource->line = 1;
     newSource->column = 1;
 
-    GetToken();
-    GetToken();
-
     return newSource;
 
   ReturnError:
@@ -1445,12 +1443,11 @@ int main( int argc, char* argv[] ) {
     return true;
   }
 
-  bool ReadIdent( RetFile* source, rstring** ident, unsigned* hashCode ) {
+  bool ReadIdent( RetFile* source, rstring** ident ) {
     rstring* dest = NULL;
     rstring* tmpDest = NULL;
-    unsigned runningHash = 0;
 
-    if( !(source && ident && hashCode) ) {
+    if( !(source && ident) ) {
       return false;
     }
 
@@ -1475,7 +1472,6 @@ int main( int argc, char* argv[] ) {
     }
 
     (*ident) = dest;
-    (*hashCode) = runningHash;
     return true;
   }
 
@@ -1621,17 +1617,16 @@ int main( int argc, char* argv[] ) {
     return true;
   }
 
-  bool ReadString( RetFile* source, rstring** string, unsigned* hashCode ) {
+  bool ReadString( RetFile* source, rstring** destString ) {
     rstring* dest = NULL;
     rstring* tmpDest = NULL;
-    unsigned runningHash = 0;
     char quoteCh;
 
-    if( !(source && string && hashCode) ) {
+    if( !(source && destString) ) {
       return false;
     }
 
-    dest = (*string);
+    dest = (*destString);
 
     quoteCh = source->curCh;
     if( !((quoteCh == '\"') || (quoteCh == '\'')) ) {
@@ -1645,25 +1640,24 @@ int main( int argc, char* argv[] ) {
     while( source->curCh != quoteCh ) {
       tmpDest = rstrappendch(dest, source->curCh);
       if( tmpDest == NULL ) {
-        (*string) = dest;
+        (*destString) = dest;
         return false;
       }
       dest = tmpDest;
 
       if( !ReadChar(source) ) {
-        (*string) = dest;
+        (*destString) = dest;
         return false;
       }
     }
 
     // Skip closing quote character
     if( !ReadChar(source) ) {
-      (*string) = dest;
+      (*destString) = dest;
       return false;
     }
 
-    (*string) = dest;
-    (*hashCode) = runningHash;
+    (*destString) = dest;
     return true;
   }
 
@@ -1790,7 +1784,6 @@ int main( int argc, char* argv[] ) {
 
   unsigned GetToken() {
     rstring* tmpIdent = NULL;
-    unsigned hashCode = 0;
     char nextCh = '\0';
 
     if( retSource == NULL ) {
@@ -1827,7 +1820,7 @@ int main( int argc, char* argv[] ) {
     nextCh = retSource->nextCh;
 
     if( (nextCh == '_') || isalnum(nextCh) ) {
-      if( ReadIdent(retSource, &nextIdent, &hashCode) ) {
+      if( ReadIdent(retSource, &nextIdent) ) {
         nextToken = tkIdent;
       }
       return curToken;
@@ -1841,13 +1834,15 @@ int main( int argc, char* argv[] ) {
     }
 
     if( (nextCh == '"') || (nextCh == '\'') ) {
-      if( ReadString(retSource, &nextVal.strVal, &hashCode) ) {
+      if( ReadString(retSource, &nextVal.strVal) ) {
         nextToken = valString;
       }
       return curToken;
     }
 
-    nextToken = ReadOperator(retSource);
+    if( ispunct(nextCh) ) {
+      nextToken = ReadOperator(retSource);
+    }
 
     return curToken;
   }
@@ -1857,55 +1852,114 @@ int main( int argc, char* argv[] ) {
  */
 
 /*
+ *  C generation declarations
+ */
+
+  CGen* CreateC( char* fileName, size_t nameLength ) {
+    CGen* newGen = NULL;
+    rstring* tempStr = NULL;
+
+    if( !(fileName && (*fileName)) ) {
+      goto ReturnError;
+    }
+
+    newGen = calloc(1, sizeof(CGen));
+    if( newGen == NULL ) {
+      goto ReturnError;
+    }
+
+    // Set the C file name
+    newGen->cFileName = rstrcopyc(fileName, nameLength);
+    if( newGen->cFileName == NULL ) {
+      goto ReturnError;
+    }
+
+    // Derive C include name
+    newGen->cIncludeName = RemoveFileExtension(newGen->cFileName);
+    tempStr = rstrappendc(newGen->cIncludeName, ".rgi", 2);
+    if( tempStr == NULL ) {
+      goto ReturnError;
+    }
+    newGen->cIncludeName = tempStr;
+
+    newGen->cHandle = fopen(rstrtext(newGen->cFileName), "wb");
+    if( newGen->cHandle == NULL ) {
+      goto ReturnError;
+    }
+
+    newGen->cIncludeHandle = fopen(rstrtext(newGen->cIncludeName), "wb");
+    if( newGen->cIncludeHandle == NULL ) {
+      goto ReturnError;
+    }
+
+    return newGen;
+
+  ReturnError:
+    CloseC( &newGen );
+    return NULL;
+  }
+
+  void CloseC( CGen** source ) {
+    if( source ) {
+      if( (*source) ) {
+        if( (*source)->cHandle ) {
+          fclose( (*source)->cHandle );
+          (*source)->cHandle = NULL;
+        }
+
+        if( (*source)->cIncludeHandle ) {
+          fclose( (*source)->cIncludeHandle );
+          (*source)->cIncludeHandle = NULL;
+        }
+
+        if( (*source)->cFileName ) {
+          rstrfree( &((*source)->cFileName) );
+        }
+
+        if( (*source)->cIncludeName ) {
+          rstrfree( &((*source)->cIncludeName) );
+        }
+
+        free( (*source) );
+        (*source) = NULL;
+      }
+    }
+  }
+
+  bool GenTypeSpec( CGen* csource, TypeSpec* typeSpec ) {
+    return false;
+  }
+
+/*
  *  Parser implementation
  */
 
   void ParseProgramHeader() {
-    rstring* identStr = NULL;
-    unsigned hashCode = 0;
-    unsigned line;
-    unsigned column;
-
     if( !(retSource /* && ... */) ) {
       return; ///TODO: Change return to Error
     }
 
-    // Validate program header
-    SkipComments( retSource );
-
-    line = retSource->line;
-    column = retSource->column;
-
-    if( !ReadIdent(retSource, &identStr, &hashCode) ) {
+    /* Validate program header */
+    if( curToken != tkIdent ) {
       // Ignore read error
     }
-    if( FindKeyword(rstrtext(identStr)) != rsvdProgram ) {
-      Expected( line, column, expectedProgram );
+    if( FindKeyword(rstrtext(curIdent)) != rsvdProgram ) {
+      Expected( curLine, curColumn, expectedProgram );
     }
-    rstrclear( identStr );
+    GetToken(); // Skip program
 
     // Validate namespace identifier
-    SkipComments( retSource );
-
-    line = retSource->line;
-    column = retSource->column;
-
-    if( !ReadIdent(retSource, &identStr, &hashCode) ) {
+    if( curToken != tkIdent ) {
       // Ignore read error
     }
-    if( FindKeyword(rstrtext(identStr)) != 0 ) {
-      Expected( line, column, expectedIdentifier );
+    if( FindKeyword(rstrtext(curIdent)) != 0 ) {
+      Expected( curLine, curColumn, expectedIdentifier );
     }
+    GetToken(); // Skip IDENT
 
-    ///TODO: Allocate symbol table
     symTab = CreateSymTab(0);
     if( symTab == NULL ) {
       Error( unableToCreate, "Symbol Table" );
-    }
-
-    if( identStr ) {
-      free( identStr );
-      identStr = NULL;
     }
   }
 
@@ -1955,140 +2009,91 @@ int main( int argc, char* argv[] ) {
   }
 
   void ParseRun() {
-    SymTable* localTab = NULL;
-    rstring* identStr = NULL;
-    unsigned token;
-    unsigned hashCode = 0;
-    unsigned line = 0;
-    unsigned column = 0;
-
     ///TODO: Create local symbol table
 
     ///TODO: Parse one or more local var statements
 
     // Parse run statement
     do {
-      SkipComments( retSource );
+      if( curToken == rsvdEnd ) {
+        ///TODO: Show error if nested statement is still open
 
-      line = retSource->line;
-      column = retSource->column;
+        GetToken(); // Skip run
+        if( curToken != tkIdent ) {
+        Expected( curLine, curColumn, expectedRunStatement );
+        }
+        curToken = FindKeyword(rstrtext(curIdent));
+        if( curToken == 0 ) {
+          Expected( curLine, curColumn, expectedRunStatement );
+        }
 
-      if( ReadIdent(retSource, &identStr, &hashCode) == false ) {
-        goto ReturnExpectedRunStatement;
-      }
-
-      token = FindKeyword(rstrtext(identStr));
-      if( token == 0 ) {
-        goto ReturnExpectedRunStatement;
-      }
-
-      if( token == rsvdEnd ) {
         ParseRunEnd();
-        goto Cleanup;
+        break;
       }
 
-      if( token ) {
-        goto ReturnExpectedRunStatement;
+      if( curToken ) {
+        Expected( curLine, curColumn, expectedRunStatement );
       }
-    } while( token );
-
-  Cleanup:
-    if( identStr ) {
-      free( identStr );
-      identStr = NULL;
-    }
-    ReleaseSymTab( &localTab );
-    return;
-
-  ReturnExpectedRunStatement:
-    if( identStr ) {
-      free( identStr );
-      identStr = NULL;
-    }
-    ReleaseSymTab( &localTab );
-    Expected( line, column, expectedRunStatement );
+    } while( curToken );
   }
 
   void ParseRunEnd() {
   }
 
   void ParseTopLevel() {
-    rstring* identStr = NULL;
-    unsigned token;
-    unsigned hashCode = 0;
-    unsigned line = 0;
-    unsigned column = 0;
-    bool runDeclared = false;
-
     if( retSource == NULL ) {
       return;
     }
 
     do {
-      SkipComments( retSource );
-
-      line = retSource->line;
-      column = retSource->column;
-
-      if( ReadIdent(retSource, &identStr, &hashCode) == false ) {
-        goto ReturnExpectedTopLevelOrRun;
+      if( curToken != tkIdent ) {
+        Expected( curLine, curColumn, expectedTopLevelOrRun );
+      }
+      curToken = FindKeyword(rstrtext(curIdent));
+      if( curToken == 0 ) {
+        Expected( curLine, curColumn, expectedTopLevelOrRun );
       }
 
-      token = FindKeyword(rstrtext(identStr));
-      if( token == 0 ) {
-        goto ReturnExpectedTopLevelOrRun;
-      }
-
-      if( token == rsvdType ) {
+      if( curToken == rsvdType ) {
         ParseType();
         continue;
       }
 
-      if( token == rsvdNewType ) {
+      if( curToken == rsvdNewType ) {
         ParseNewType();
         continue;
       }
 
-      if( token == rsvdImport ) {
+      if( curToken == rsvdImport ) {
         ParseImport();
         continue;
       }
 
-      if( token == rsvdRun ) {
-        if( runDeclared ) {
-          goto ReturnExpectedTopLevel;
+      if( curToken == rsvdRun ) {
+        if( cSourceGen->runDeclared ) {
+          Expected( curLine, curColumn, expectedTopLevel );
         }
-        runDeclared = true;
+        cSourceGen->runDeclared = true;
+
+        GetToken(); // Skip run
+        if( curToken != tkIdent ) {
+        Expected( curLine, curColumn, expectedTopLevel );
+        }
+        curToken = FindKeyword(rstrtext(curIdent));
+        if( curToken == 0 ) {
+          Expected( curLine, curColumn, expectedTopLevel );
+        }
 
         ParseRun();
         continue;
       }
 
-      if( token ) {
-        goto ReturnExpectedTopLevelOrRun;
+      if( curToken ) {
+        if( cSourceGen->runDeclared ) {
+          Expected( curLine, curColumn, expectedTopLevel );
+        } else {
+          Expected( curLine, curColumn, expectedTopLevelOrRun );
+        }
       }
-    } while( token );
-
-  Cleanup:
-    if( identStr ) {
-      free( identStr );
-      identStr = NULL;
-    }
-    return;
-
-  ReturnExpectedTopLevelOrRun:
-    if( identStr ) {
-      free( identStr );
-      identStr = NULL;
-    }
-    Expected( line, column, expectedTopLevelOrRun );
-    return;
-
-  ReturnExpectedTopLevel:
-    if( identStr ) {
-      free( identStr );
-      identStr = NULL;
-    }
-    Expected( line, column, expectedTopLevel );
-    return;
+    } while( curToken );
   }
