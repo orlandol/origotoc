@@ -40,7 +40,6 @@
       rsvdProgram,
       rsvdEnum,
       rsvdType,
-      rsvdNewType,
       rsvdStruct,
       rsvdObject,
       rsvdImport,
@@ -75,15 +74,29 @@
     typeDecl = (2 << 9),
       typeInt,
         firstType = typeInt,
+      typeInt8,
+      typeInt16,
+      typeInt32,
       typeUint,
+      typeUint8,
+      typeUint16,
+      typeUint32,
       typeChar,
       typeString,
       typeBool,
       typeStruct,
-        lastType = typeStruct,
+      typeUnion,
+        lastType = typeUnion,
+
+    // Pointer tokens
+    ptrDecl = (3 << 9),
+      ptrData,
+        firstPtr = ptrData,
+      ptrRef,
+        lastPtr = ptrRef,
 
     // Literal value tokens
-    valImmediate = (3 << 9),
+    valImmediate = (4 << 9),
       valInt = (valImmediate + (0 << 5)),
           firstValInt = valInt,
         valInt8,
@@ -111,7 +124,7 @@
           lastValBool = valBool,
 
     // Operator tokens
-    operSymbol = (4 << 9),
+    operSymbol = (5 << 9),
       operPrec00 = (operSymbol + (0 << 5)),
       operPrec01 = (operSymbol + (1 << 5)),
         opPostInc,
@@ -160,7 +173,7 @@
       operPrec15 = (operSymbol + (15 << 5)),
 
     // Assignment operators
-    assignSymbol  = (5 << 9),
+    assignSymbol  = (6 << 9),
       assignTo,
       assignNot,
       assignAdd,
@@ -190,12 +203,22 @@
   } Keyword;
 
   const Keyword keywordTable[] = {
+    "bool",    typeBool,
+    "char",    typeChar,
     "end",     rsvdEnd,
     "import",  rsvdImport,
-    "newtype", rsvdNewType,
+    "int",     typeInt,
+    "int16",   typeInt16,
+    "int32",   typeInt32,
+    "int8",    typeInt8,
     "program", rsvdProgram,
     "run",     rsvdRun,
-    "type",    rsvdType
+    "string",  typeString,
+    "type",    rsvdType,
+    "uint",    typeUint,
+    "uint16",  typeUint16,
+    "uint32",  typeUint32,
+    "uint8",   typeUint8
   };
 
   const size_t keywordCount = sizeof(keywordTable) / sizeof(keywordTable[0]);
@@ -285,6 +308,26 @@
   rstring* rsubstrc( char* source, size_t sourceLength, size_t startPos, size_t endPos );
 
 /*
+ *  Token value declarations
+ */
+
+  typedef struct TokenVal {
+    unsigned valType;
+    union {
+      unsigned uVal;
+      int iVal;
+      char chVal;
+      rstring* strVal;
+      struct {
+        uint8_t* dataVal;
+        size_t dataSize;
+      };
+    };
+  } TokenVal;
+
+  void ReleaseTokenVal( TokenVal* tokenVal );
+
+/*
  *  Type specifier declarations
  */
 
@@ -294,19 +337,6 @@
     size_t count;
     size_t offset;
   } ArrayDimension;
-
-  typedef union TokenVal {
-    unsigned uVal;
-    int iVal;
-    char chVal;
-    rstring* strVal;
-    struct {
-      uint8_t* dataVal;
-      size_t dataSize;
-    };
-  } TokenVal;
-
-  void ClearTokenVal( Token valType, TokenVal* tokenVal );
 
   typedef struct TypeSpec {
     // <ptrRef '#' | ptrData '@'>
@@ -318,6 +348,7 @@
       size_t baseSize;
       size_t baseBits;
     };
+    rstring* baseTypeName;
 
     // '[' <[min..max[,...]] | [count[,...]]> ']'
     size_t dimensionCount;
@@ -326,6 +357,8 @@
     // = defaultValue
     TokenVal initVal;
   } TypeSpec;
+
+  void ReleaseTypeSpec( TypeSpec* typeSpec );
 
 /*
  *  Symbol table declarations
@@ -376,7 +409,6 @@
   DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveSymbol, SymTable, SymItem )
 
   bool DeclareType( SymTable* symTab, char* definedType, char* typeName, TokenVal* initVal );
-  bool DeclareNewType( SymTable* symTab, char* name, TypeSpec* typeSpec );
 
 /*
  *  Lexer declarations
@@ -410,9 +442,8 @@
 
   unsigned ReadOperator( RetFile* source );
 
-  unsigned ReadTypeSpec( RetFile* source, TypeSpec* destSpec );
-
   unsigned GetToken();
+  unsigned TranslateKeyword( unsigned originalToken );
 
 /*
  *  Expression parser declarations
@@ -453,8 +484,10 @@
   void EndParse();
 
   void ParseType();
-  void ParseNewType();
   void ParseImport();
+
+  void ParseLocalVar();
+  void ParseLocalVarEnd();
 
   void ParseIf();
   void ParseFor();
@@ -480,6 +513,7 @@
   CGen* cSourceGen = NULL;
 
   SymTable* symTab = NULL;
+  SymTable* localTab = NULL;
 
   rstring* curIdent = NULL;
   TokenVal curVal = {};
@@ -507,8 +541,8 @@
     rstrfree( &curIdent );
     rstrfree( &nextIdent );
 
-    ClearTokenVal( curToken, &curVal );
-    ClearTokenVal( nextToken, &nextVal );
+    ReleaseTokenVal( &curVal );
+    ReleaseTokenVal( &nextVal );
 
     rstrfree( &retFileName );
     rstrfree( &cFileName );
@@ -518,6 +552,7 @@
     CloseC( &cSourceGen );
 
     ReleaseSymTab( &symTab );
+    ReleaseSymTab( &localTab );
   }
 
   rstring* RemoveFileExtension( rstring* fileName ) {
@@ -735,8 +770,8 @@ int main( int argc, char* argv[] ) {
     "",
     "program",
     "undeclared identifier",
-    "type, newtype, import, or run",
-    "type, newtype, or import",
+    "type, import, or run",
+    "type, or import",
     "run",
     "statement, return, return EXPR, or result expression",
     "statement, inherited statement, bind, return, return EXPR, or result expression",
@@ -752,6 +787,7 @@ int main( int argc, char* argv[] ) {
       printf( "  Expected: code %u\n", expectedCode );
     }
 
+    Cleanup();
     exit( expectedCode );
   }
 
@@ -776,6 +812,7 @@ int main( int argc, char* argv[] ) {
       printf( "  ERROR: code %u\n", errorCode );
     }
 
+    Cleanup();
     exit( errorCode );
   }
 
@@ -1203,17 +1240,20 @@ int main( int argc, char* argv[] ) {
   }
 
 /*
- *  Type specifier implementation
+ *  Token value implementation
  */
-  void ClearTokenVal( Token valType, TokenVal* tokenVal ) {
+
+  void ReleaseTokenVal( TokenVal* tokenVal ) {
     if( tokenVal ) {
-      switch( valType ) {
+      switch( tokenVal->valType ) {
       case typeString:
         rstrfree( &(tokenVal->strVal) );
         break;
 
       case typeStruct:
+      case typeUnion:
         free( &(tokenVal->dataVal) );
+        tokenVal->dataVal = NULL;
         break;
       }
 
@@ -1222,52 +1262,55 @@ int main( int argc, char* argv[] ) {
   }
 
 /*
+ *  Type specifier implementation
+ */
+
+  void ReleaseTypeSpec( TypeSpec* typeSpec ) {
+    if( typeSpec ) {
+      rstrfree( &(typeSpec->baseTypeName) );
+
+      if( typeSpec->dimension ) {
+        free( typeSpec->dimension );
+        typeSpec->dimension = NULL;
+      }
+
+      memset( typeSpec, 0, sizeof(TypeSpec) );
+    }
+  }
+
+/*
  *  Symbol table implementation
  */
 
   void CopySymItem( SymItem* dest, SymItem* source ) {
+    ///TODO: Allocate and copy dynamic data
   }
 
   void FreeSymItem( SymItem* symItem ) {
-    if( symItem == NULL ) {
-      return;
-    }
+    if( symItem ) {
+      switch( symItem->token ) {
+      case symNone:
+        return;
 
-    switch( symItem->token ) {
-    case symNone:
-      return;
+      case symBaseType:
+        return;
 
-    case symBaseType:
-      return;
+      case symType:
+        if( symItem->typeSym.typeSpec.dimension ) {
+          free( symItem->typeSym.typeSpec.dimension );
+          symItem->typeSym.typeSpec.dimension = NULL;
+        }
+        return;
 
-    case symType:
-      if( symItem->typeSym.typeSpec.dimension ) {
-        free( symItem->typeSym.typeSpec.dimension );
-        symItem->typeSym.typeSpec.dimension = NULL;
+      case symFuncImport:
+        return;
       }
-      return;
-
-    case symFuncImport:
-      return;
     }
   }
 
   bool DeclareType( SymTable* symTab, char* definedType, char* typeName, TokenVal* initVal ) {
     SymItem typeItem = {};
 
-    return false;
-  }
-
-  bool DeclareNewType( SymTable* symTab, char* name, TypeSpec* typeSpec ) {
-    SymItem typeItem = {};
-
-    if( !(symTab && name && (*name) && typeSpec) ) {
-      return false;
-    }
-
-    return false;
-
-  ReturnError:
     return false;
   }
 
@@ -1776,10 +1819,6 @@ int main( int argc, char* argv[] ) {
     return token;
   }
 
-  unsigned ReadTypeSpec( RetFile* source, TypeSpec* destSpec ) {
-    return 0;
-  }
-
   unsigned GetToken() {
     rstring* tmpIdent = NULL;
     char nextCh = '\0';
@@ -1796,9 +1835,9 @@ int main( int argc, char* argv[] ) {
     nextIdent = tmpIdent;
 
     // Token values
-    ClearTokenVal( curToken, &curVal );
+    ReleaseTokenVal( &curVal );
     curVal = nextVal;
-    ClearTokenVal( nextToken, &nextVal );
+    ReleaseTokenVal( &nextVal );
 
     // Character position
     curLine = nextLine;
@@ -1843,6 +1882,19 @@ int main( int argc, char* argv[] ) {
     }
 
     return curToken;
+  }
+
+  unsigned TranslateKeyword( unsigned originalToken ) {
+    unsigned keywordToken;
+
+    if( originalToken == tkIdent ) {
+      keywordToken = FindKeyword(rstrtext(curIdent));
+      if( keywordToken ) {
+        return keywordToken;
+      }
+    }
+
+    return originalToken;
   }
 
 /*
@@ -1953,19 +2005,13 @@ int main( int argc, char* argv[] ) {
     }
 
     /* Validate program header */
-    if( curToken != tkIdent ) {
-      // Ignore read error
-    }
-    if( FindKeyword(rstrtext(curIdent)) != rsvdProgram ) {
+    curToken = TranslateKeyword(curToken);
+    if( curToken != rsvdProgram ) {
       Expected( curLine, curColumn, expectedProgram );
     }
-    GetToken(); // Skip program
+    curToken = TranslateKeyword(GetToken()); // Skip program
 
-    // Validate namespace identifier
     if( curToken != tkIdent ) {
-      // Ignore read error
-    }
-    if( FindKeyword(rstrtext(curIdent)) != 0 ) {
       Expected( curLine, curColumn, expectedIdentifier );
     }
     programName = rstrcopy(curIdent);
@@ -1988,13 +2034,36 @@ int main( int argc, char* argv[] ) {
     }
   }
 
+  void ParseTypeSpec( TypeSpec* destSpec ) {
+  }
+
   void ParseType() {
   }
 
-  void ParseNewType() {
+  void ParseImport() {
   }
 
-  void ParseImport() {
+  void ParseLocalVar() {
+    TypeSpec typeSpec = {};
+    SymItem symItem = {};
+    unsigned typeToken;
+    unsigned rsvdToken;
+
+    do {
+      rsvdToken = TranslateKeyword(GetToken()); // Skip var
+      if( rsvdToken == rsvdEnd ) {
+        ParseLocalVarEnd();
+        break;
+      }
+
+      typeToken = RetrieveSymbol(symTab, rstrtext(curIdent), &symItem);
+
+      ReleaseTypeSpec( &typeSpec );
+      ParseTypeSpec( &typeSpec );
+    } while( curToken );
+  }
+
+  void ParseLocalVarEnd() {
   }
 
   void ParseIf() {
@@ -2031,19 +2100,36 @@ int main( int argc, char* argv[] ) {
   }
 
   void ParseRun() {
+    unsigned varToken;
+
     if( !(retSource && cSourceGen) ) {
       return; ///TODO: Replace with error
     }
 
-    ///TODO: Create local symbol table
+    if( localTab == NULL ) {
+      localTab = CreateSymTab(0);
+      if( localTab == NULL ) {
+        ///TODO: Error creating localTab
+      }
+    }
 
     fprintf( cSourceGen->cHandle,
       "\nint main( int argc, char* argv[] ) {\n" );
 
-    ///TODO: Parse one or more local var statements
+    do {
+      varToken = TranslateKeyword(curToken);
+      if( varToken == rsvdVar ) {
+        curToken = varToken;
+        ParseLocalVar();
+        continue;
+      }
+      break;
+    } while( varToken );
 
     // Parse run statement
     do {
+      curToken = TranslateKeyword(curToken);
+
       if( curToken == rsvdEnd ) {
         ///TODO: Show error if nested statement is still open
 
@@ -2058,6 +2144,8 @@ int main( int argc, char* argv[] ) {
   void ParseRunEnd() {
     if( cSourceGen && cSourceGen->cHandle ) {
       fprintf( cSourceGen->cHandle, "\n  return 0;\n}\n" );
+
+      ReleaseSymTab( &localTab );
     }
   }
 
@@ -2066,24 +2154,11 @@ int main( int argc, char* argv[] ) {
 
     if( retSource && cSourceGen ) {
       while( curToken ) {
-        // Get next reserved word
-        if( curToken != tkIdent ) {
-          Expected( curLine, curColumn, expectedCode );
-        }
-        curToken = FindKeyword(rstrtext(curIdent));
-        if( curToken == 0 ) {
-          Expected( curLine, curColumn, expectedCode );
-        }
+        curToken = TranslateKeyword(curToken);
 
         /* type */
         if( curToken == rsvdType ) {
           ParseType();
-          continue;
-        }
-
-        /* newtype */
-        if( curToken == rsvdNewType ) {
-          ParseNewType();
           continue;
         }
 
@@ -2103,14 +2178,6 @@ int main( int argc, char* argv[] ) {
           expectedCode = expectedTopLevel;
 
           GetToken(); // Skip run
-
-          if( curToken != tkIdent ) {
-            Expected( curLine, curColumn, expectedCode );
-          }
-          curToken = FindKeyword(rstrtext(curIdent));
-          if( curToken == 0 ) {
-            Expected( curLine, curColumn, expectedCode );
-          }
 
           ParseRun();
           continue;
