@@ -1,6 +1,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /*
  * Global variables
@@ -28,6 +29,8 @@
 
   char ReadChar();
 
+  unsigned GetToken();
+
   int RunProgram( char* commandLine );
 
 
@@ -42,10 +45,27 @@
   }
 
   void ParseOptions( int argc, char* argv[] ) {
-    if( argc < 2 ) {
-      printf( "usage: origotoc source[.ret] [binary[.exe]]\n" );
+    if( (argc < 2) || (argc > 3) ) {
+      printf( "Origo to C Alpha - Copyright 2020 Orlando Llanes\n" );
+      printf( "\nusage: origotoc source[.ret] [binary[.exe]]\n" );
       exit(1);
     }
+
+    strncpy( baseSourceName, argv[1], sizeof(baseSourceName) );
+
+    strncpy( retName, argv[1], sizeof(retName) );
+
+    if( argc == 3 ) {
+      strncpy( exeName, argv[2], sizeof(exeName) );
+    } else {
+      strncpy( exeName, argv[1], sizeof(exeName) );
+    }
+
+    strncpy( cName, baseSourceName, sizeof(cName) );
+    strncat( cName, ".rgc", sizeof(cName) );
+
+    strncpy( headerName, baseSourceName, sizeof(headerName) );
+    strncat( headerName, ".rgh", sizeof(headerName) );
   }
 
   FILE* OpenRet( char* sourceName ) {
@@ -56,6 +76,9 @@
       if( fileResult ) {
         ReadChar();
         ReadChar();
+
+        GetToken();
+        GetToken();
       }
     }
 
@@ -80,7 +103,7 @@
   }
 
   int RunProgram( char* commandLine ) {
-    int errorLevel = 0;
+    int errorLevel = -1;
 
     if( commandLine && (*commandLine) ) {
       errorLevel = system(commandLine);
@@ -89,10 +112,20 @@
     return errorLevel;
   }
 
+  unsigned GetToken() {
+    return 0;
+  }
+
 int main( int argc, char* argv[] ) {
   char ch;
 
   ParseOptions( argc, argv );
+
+  printf( "baseSourceName == %s\n", baseSourceName );
+  printf( "retName == %s\n", retName );
+  printf( "exeName == %s\n", exeName );
+  printf( "cName == %s\n", cName );
+  printf( "headerName == %s\n", headerName );
 
   do {
     ch = ReadChar();
