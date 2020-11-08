@@ -1,10 +1,11 @@
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 /*
- * Global variables
+ * Declarations
  */
 
   typedef struct TokenVal {
@@ -17,24 +18,6 @@
       char valChar;
     };
   } TokenVal;
-
-  char baseName[FILENAME_MAX + 1] = {};
-
-  char retName[FILENAME_MAX + 1] = {};
-  char exeName[FILENAME_MAX + 1] = {};
-  char cName[FILENAME_MAX + 1] = {};
-  char headerName[FILENAME_MAX + 1] = {};
-
-  FILE* retFile = NULL;
-  FILE* cFile = NULL;
-  FILE* headerFile = NULL;
-
-  char curCh = 0;
-  char nextCh = 0;
-
-/*
- * Declarations
- */
 
   int RunProgram( char* commandLine );
 
@@ -53,7 +36,41 @@
 
   char ReadChar();
 
+  void SkipSpace();
+  void SkipSpaceAndComments();
+
+  int ReadIdent( char* destIdent, size_t destMaxLen );
+
+  int ReadBinNum( unsigned* destNum );
+  int ReadOctalNum( unsigned* destNum );
+  int ReadHexNum( unsigned* destNum );
+  int ReadNum( unsigned* destNum );
+
   unsigned GetToken();
+
+/*
+ * Global variables
+ */
+
+  char baseName[FILENAME_MAX + 1] = {};
+
+  char retName[FILENAME_MAX + 1] = {};
+  char exeName[FILENAME_MAX + 1] = {};
+  char cName[FILENAME_MAX + 1] = {};
+  char headerName[FILENAME_MAX + 1] = {};
+
+  FILE* retFile = NULL;
+  FILE* cFile = NULL;
+  FILE* headerFile = NULL;
+
+  char curCh = 0;
+  char curIdent[1024] = {};
+
+  char nextCh = 0;
+  char nextIdent[1024] = {};
+
+  TokenVal curVal = {};
+  TokenVal nextVal = {};
 
 /*
  * Implementations
@@ -197,6 +214,238 @@
     return curCh;
   }
 
+  void SkipSpace() {
+    while( isspace(curCh) ) {
+      ReadChar();
+    }
+  }
+
+  void SkipSpaceAndComments() {
+    unsigned commentLevel;
+    unsigned loopFlags;
+
+    do {
+      loopFlags = 0;
+
+      // Skip space characters
+      if( isspace(curCh) ) {
+        while( isspace(curCh) ) {
+          ReadChar();
+        }
+        loopFlags |= 1;
+      }
+
+      // Skip single-line comments
+      if( (curCh == '/') && (nextCh == '/') ) {
+        do {
+          if( ReadChar() == 0 ) {
+            printf( "Single-line comments must end with CR and/or LF\n" );
+            exit(6);
+          }
+        } while( (curCh != '\r') && (curCh != '\n') );
+        loopFlags |= 2;
+      }
+
+      // Skip multi-line comments
+      if( (curCh == '/') && (nextCh == '*') ) {
+          commentLevel = 0;
+          do {
+            if( (curCh == '/') && (nextCh == '*') ) {
+              if( commentLevel == ((unsigned)-1) ) {
+                printf( "Multi-line comment is nested too many levels deep\n" );
+                exit(7);
+              }
+              commentLevel++;
+              if( !(ReadChar() && ReadChar()) ) {
+                printf( "Unexpected EOF in multi-line comment opened with /*\n" );
+                exit(8);
+              }
+              continue;
+            }
+
+            if( (curCh == '*') && (nextCh == '/') ) {
+              if( commentLevel == 0 ) {
+                printf( "Each multi-line comment must be opened with /* before closing with */\n" );
+                exit(9);
+              }
+              commentLevel--;
+              if( !(ReadChar() && ReadChar()) ) {
+                return; // Valid within this function's scope
+              }
+              continue;
+            }
+
+            if( ReadChar() == 0 ) {
+              return; // Valid within this function's scope
+            }
+        } while( commentLevel );
+
+        loopFlags |= 4;
+      }
+    } while( curCh && loopFlags );
+  }
+
+  int ReadIdent( char* destIdent, size_t destMaxLen ) {
+    size_t destIndex = 0;
+
+    if( !(retFile && destIdent && destMaxLen) ) {
+      return 0;
+    }
+
+    if( (curCh != '_') && (isalnum(curCh) == 0) ) {
+      return 0;
+    }
+
+    while( (curCh == '_') || (isalnum(curCh)) ) {
+      if( (destIndex + 1) < destMaxLen ) {
+        destIdent[destIndex++] = curCh;
+      }
+      ReadChar();
+    }
+    destIdent[destIndex] = '\0';
+
+    return -1;
+  }
+
+  int ReadBinNum( unsigned* destNum ) {
+    unsigned result = 0;
+
+    if( !(retFile && destNum) ) {
+      return 0;
+    }
+
+    if( (curCh != '0') || (nextCh != 'b') ) {
+      return 0;
+    }
+
+    ReadChar();
+    ReadChar();
+
+    if( !((curCh == '_') || ((curCh >= '0') && (curCh <= '1'))) ) {
+      return 0;
+    }
+
+    while( curCh ) {
+      if( (curCh >= '0') && (curCh <= '1')  ) {
+        result = (result << 1) + (curCh - '0');
+      } else if( curCh == '_' ) {
+      } else {
+        break;
+      }
+      ReadChar();
+    }
+
+    *destNum = result;
+    return -1;
+  }
+
+  int ReadOctalNum( unsigned* destNum ) {
+    unsigned result = 0;
+
+    if( !(retFile && destNum) ) {
+      return 0;
+    }
+
+    if( (curCh != '0') || (nextCh != 'o') ) {
+      return 0;
+    }
+
+    ReadChar();
+    ReadChar();
+
+    if( !((curCh == '_') || ((curCh >= '0') && (curCh <= '7'))) ) {
+      return 0;
+    }
+
+    while( curCh ) {
+      if( (curCh >= '0') && (curCh <= '7')  ) {
+        result = (result << 3) + (curCh - '0');
+      } else if( curCh == '_' ) {
+      } else {
+        break;
+      }
+
+      ReadChar();
+    }
+
+    *destNum = result;
+    return -1;
+  }
+
+  int ReadHexNum( unsigned* destNum ) {
+    unsigned result = 0;
+
+    if( !(retFile && destNum) ) {
+      return 0;
+    }
+
+    if( (curCh != '0') || (nextCh != 'x') ) {
+      return 0;
+    }
+
+    ReadChar();
+    ReadChar();
+
+    if( !((curCh == '_') || isxdigit(curCh)) ) {
+      return 0;
+    }
+
+    while( curCh ) {
+      if( (curCh >= '0') && (curCh <= '9')  ) {
+        result = (result << 4) + (curCh - '0');
+      } else if( (curCh >= 'a') && (curCh <= 'f')  ) {
+        result = (result << 4) + (curCh - 'a') + 10;
+      } else if( (curCh >= 'A') && (curCh <= 'F')  ) {
+        result = (result << 4) + (curCh - 'A') + 10;
+      } else if( curCh == '_' ) {
+      } else {
+        break;
+      }
+
+      ReadChar();
+    }
+
+    *destNum = result;
+    return -1;
+  }
+
+  int ReadNum( unsigned* destNum ) {
+    unsigned result = 0;
+
+    if( !(retFile && destNum) ) {
+      return 0;
+    }
+
+    if( isdigit(curCh) == 0 ) {
+      return 0;
+    }
+
+    // Check for other types of integers
+    if( curCh == '0' ) {
+      switch( nextCh ) {
+      case 'b': return ReadBinNum(destNum);
+      case 'o': return ReadOctalNum(destNum);
+      case 'x': return ReadHexNum(destNum);
+      }
+    }
+
+    // Skip leading zeroes
+    while( curCh == '0' ) {
+      ReadChar();
+    }
+
+    // Tokenize decimal
+    while( (curCh == '_') || isdigit(curCh) ) {
+      if( curCh != '_' ) {
+        result = (result * 10) + (curCh - '0');
+      }
+      ReadChar();
+    }
+
+    *destNum = result;
+    return -1;
+  }
+
   unsigned GetToken() {
     return 0;
   }
@@ -204,20 +453,54 @@
 int main( int argc, char* argv[] ) {
   char ch;
 
+  // Initialize program
   atexit( Cleanup );
 
+  // Process command line
   ParseOptions( argc, argv );
 
-  if( OpenRet(retName) == 0 ) {
+  // Open source file
+  retFile = OpenRet(retName);
+  if( retFile == 0 ) {
     printf( "Error opening file %s\n", retName );
+    exit( 2 );
+  }
+  ReadChar();
+  ReadChar();
+
+  // Create intermediate files
+  cFile = CreateC(cName);
+  if( cFile == 0 ) {
+    printf( "Error creating file %s\n", cName );
+    exit( 2 );
   }
 
+  headerFile = CreateHeader(headerName);
+  if( headerFile == 0 ) {
+    printf( "Error creating file %s\n", headerName );
+    exit( 2 );
+  }
+
+  // Parse Retineo source into C intermediate files
   printf( "\nParsing %s...\n", retName );
+
+  SkipSpaceAndComments();
+
+  if( ReadIdent(nextIdent, sizeof(nextIdent)) == 0 ) {
+    printf( "Error reading identifier\n" );
+    exit( 3 );
+  } else {
+    printf( "nextIdent == %s\n", nextIdent );
+  }
+
   printf( "\n" );
 
+  // Build executable from C intermediate files
   printf( "\nBuilding %s from %s...\n", exeName, headerName );
   printf( "\n" );
 
+
+  // Release program resources
   Cleanup();
 
   return 0;
