@@ -8,22 +8,49 @@
  * Declarations
  */
 
+  typedef enum ErrorCodes {
+    errorInvalidCommandline = 1,
+    errorSLCommentClosedWithEOF,
+    errorMLCommentNestedTooDeep,
+    errorMLCommentClosedWithEOF,
+    errorMLCommentClosedBeforeOpening,
+    errorOpeningRetFile,
+    errorCreatingCFile,
+    errorCreatingHeaderFile,
+    errorReadingIdentifier,
+    expectedKeywordProgram,
+    expectedUndeclaredIdentifier,
+    expectedRun,
+    expectedRunOrTopLevel,
+    expectedTopLevel,
+    runAlreadyDeclared,
+    errorCFileNotOpen,
+    errorHeaderFileNotOpen,
+    expectedEndOrStatement,
+  } ErrorCodes;
+
   typedef struct TokenVal {
     unsigned valType;
 
     union {
-      char* valStr;
       unsigned valUint;
       int valInt;
       char valChar;
     };
   } TokenVal;
 
+  typedef struct Keyword {
+    char*    name;
+    unsigned token;
+  } Keyword;
+
   int RunProgram( char* commandLine );
 
   void Cleanup();
 
   void ParseOptions( int argc, char* argv[] );
+
+  unsigned FindKeyword( char* identifier );
 
   FILE* OpenRet( char* inRetName );
   void CloseRet( FILE** fileRet );
@@ -47,6 +74,15 @@
   int ReadNum( unsigned* destNum );
 
   unsigned GetToken();
+  unsigned FindKeyword( char* identifier );
+  unsigned TranslateKeyword( unsigned originalToken, char* originalTokenStr );
+
+  void BeginParse();
+  void ParseProgramHeader();
+  void ParseRun();
+  void ParseEndRun();
+  void ParseTopLevel();
+  void EndParse();
 
 /*
  * Global variables
@@ -63,13 +99,216 @@
   FILE* cFile = NULL;
   FILE* headerFile = NULL;
 
+  typedef enum Token {
+    // General tokens
+    tkGeneral = (0 << 9),
+      tkEOF,
+      tkEOL,
+      tkIdent,
+      tkDot,
+      tkDotDot,
+      tkLParen,
+      tkRParen,
+      tkLBrace,
+      tkRBrace,
+      tkLDoubleBrace,
+      tkRDoubleBrace,
+      tkComma,
+      tkColon,
+      tkAt,
+      tkHash,
+
+    // Reserved high level keyword tokens
+    rsvdIdent = (1 << 9),
+      rsvdProgram,
+        firstRsvd = rsvdProgram,
+      rsvdEnum,
+      rsvdType,
+      rsvdStruct,
+      rsvdObject,
+      rsvdImport,
+      rsvdPublic,
+      rsvdMutable,
+      rsvdExtends,
+      rsvdImplements,
+      rsvdMethod,
+      rsvdSelf,
+      rsvdFunc,
+      rsvdAsm,
+      rsvdNoRet,
+      rsvdNoFrame,
+      rsvdReturn,
+      rsvdVar,
+      rsvdRun,
+      rsvdEnd,
+      rsvdIf,
+      rsvdThen,
+      rsvdThenIf,
+      rsvdElseIf,
+      rsvdElse,
+      rsvdEndIf,
+      rsvdWhile,
+      rsvdNext,
+      rsvdStop,
+      rsvdEndWhile,
+      rsvdIn,
+      rsvdExit,
+        lastRsvd = rsvdExit,
+
+    // Type tokens
+    typeDecl = (2 << 9),
+      typeInt,
+        firstType = typeInt,
+      typeInt8,
+      typeInt16,
+      typeInt32,
+      typeUint,
+      typeUint8,
+      typeUint16,
+      typeUint32,
+      typeChar,
+      typeString,
+      typeBool,
+      typeStruct,
+      typeUnion,
+        lastType = typeUnion,
+
+    // Pointer tokens
+    ptrDecl = (3 << 9),
+      ptrData,
+        firstPtr = ptrData,
+      ptrRef,
+        lastPtr = ptrRef,
+
+    // Literal value tokens
+    valImmediate = (4 << 9),
+      valInt = (valImmediate + (0 << 5)),
+          firstValInt = valInt,
+        valInt8,
+        valInt16,
+        valInt32,
+          lastValInt = valInt32,
+
+      valUint = (valImmediate + (1 << 5)),
+          firstValUint = valUint,
+        valUint8,
+        valUint16,
+        valUint32,
+          lastValUint = valUint32,
+
+      valChar = (valImmediate + (2 << 5)),
+          firstValChar = valChar,
+          lastValChar = valChar,
+
+      valString = (valImmediate + (3 << 5)),
+          firstValString = valString,
+          lastValString = valString,
+
+      valBool = (valImmediate + (4 << 5)),
+          firstValBool = valBool,
+          lastValBool = valBool,
+
+    // Operator tokens
+    operSymbol = (5 << 9),
+      operPrec00 = (operSymbol + (0 << 5)),
+      operPrec01 = (operSymbol + (1 << 5)),
+        opPostInc,
+        opPostDec,
+      operPrec02 = (operSymbol + (2 << 5)),
+        opPreInc,
+        opPreDec,
+        unaryNeg,
+        unaryIsNot,
+        unaryNot,
+      operPrec03 = (operSymbol + (3 << 5)),
+      operPrec04 = (operSymbol + (4 << 5)),
+        opMul,
+        opDiv,
+        opMod,
+      operPrec05 = (operSymbol + (5 << 5)),
+        opAdd,
+        opSub,
+      operPrec06 = (operSymbol + (6 << 5)),
+        opShl,
+        opShr,
+        opSShr,
+        opRol,
+        opSRol,
+        opRor,
+        opSRor,
+      operPrec07 = (operSymbol + (7 << 5)),
+      operPrec08 = (operSymbol + (8 << 5)),
+        opLT,
+        opLTEq,
+        opGT,
+        opGTEq,
+      operPrec09 = (operSymbol + (9 << 5)),
+        opEq,
+        opNotEq,
+      operPrec10 = (operSymbol + (10 << 5)),
+        opAnd,
+      operPrec11 = (operSymbol + (11 << 5)),
+        opXor,
+      operPrec12 = (operSymbol + (12 << 5)),
+        opOr,
+      operPrec13 = (operSymbol + (13 << 5)),
+        opAndIs,
+      operPrec14 = (operSymbol + (14 << 5)),
+        opOrIs,
+      operPrec15 = (operSymbol + (15 << 5)),
+
+    // Assignment operators
+    assignSymbol  = (6 << 9),
+      assignTo,
+      assignNot,
+      assignAdd,
+      assignSub,
+      assignMul,
+      assignDiv,
+      assignMod,
+      assignShl,
+      assignShr,
+      assignSShr,
+      assignRol,
+      assignSRol,
+      assignRor,
+      assignSRor,
+      assignAnd,
+      assignXor,
+      assignOr
+  } Token;
+
+  const Keyword keywordTable[] = {
+    "bool",    typeBool,
+    "char",    typeChar,
+    "end",     rsvdEnd,
+    "import",  rsvdImport,
+    "int",     typeInt,
+    "int16",   typeInt16,
+    "int32",   typeInt32,
+    "int8",    typeInt8,
+    "program", rsvdProgram,
+    "run",     rsvdRun,
+    "string",  typeString,
+    "type",    rsvdType,
+    "uint",    typeUint,
+    "uint16",  typeUint16,
+    "uint32",  typeUint32,
+    "uint8",   typeUint8
+  };
+  const size_t keywordCount = sizeof(keywordTable) / sizeof(keywordTable[0]);
+
+  char programName[1024] = {};
+  int runDeclared = 0;
+
+  unsigned curToken = 0;
   char curCh = 0;
-  char curIdent[1024] = {};
-
-  char nextCh = 0;
-  char nextIdent[1024] = {};
-
+  char curTokenStr[1024] = {};
   TokenVal curVal = {};
+
+  unsigned nextToken = 0;
+  char nextCh = 0;
+  char nextTokenStr[1024] = {};
   TokenVal nextVal = {};
 
 /*
@@ -99,7 +338,7 @@
     if( (argc < 2) || (argc > 3) ) {
       printf( "Origo to C Alpha - Copyright 2020 Orlando Llanes\n" );
       printf( "\nusage: origotoc source[.ret] [binary[.exe]]\n" );
-      exit(1);
+      exit(errorInvalidCommandline);
     }
 
     // Determine the base file name without the file extension
@@ -240,7 +479,7 @@
         do {
           if( ReadChar() == 0 ) {
             printf( "Single-line comments must end with CR and/or LF\n" );
-            exit(6);
+            exit(errorSLCommentClosedWithEOF);
           }
         } while( (curCh != '\r') && (curCh != '\n') );
         loopFlags |= 2;
@@ -253,12 +492,12 @@
             if( (curCh == '/') && (nextCh == '*') ) {
               if( commentLevel == ((unsigned)-1) ) {
                 printf( "Multi-line comment is nested too many levels deep\n" );
-                exit(7);
+                exit(errorMLCommentNestedTooDeep);
               }
               commentLevel++;
               if( !(ReadChar() && ReadChar()) ) {
                 printf( "Unexpected EOF in multi-line comment opened with /*\n" );
-                exit(8);
+                exit(errorMLCommentClosedWithEOF);
               }
               continue;
             }
@@ -266,7 +505,7 @@
             if( (curCh == '*') && (nextCh == '/') ) {
               if( commentLevel == 0 ) {
                 printf( "Each multi-line comment must be opened with /* before closing with */\n" );
-                exit(9);
+                exit(errorMLCommentClosedBeforeOpening);
               }
               commentLevel--;
               if( !(ReadChar() && ReadChar()) ) {
@@ -447,7 +686,222 @@
   }
 
   unsigned GetToken() {
+    // Set current variables
+    curToken = nextToken;
+    memcpy( curTokenStr, nextTokenStr, sizeof(nextTokenStr) );
+    memcpy( &curVal, &nextVal, sizeof(nextVal) );
+
+    // Initialize next variables
+    nextToken = 0;
+    memset( nextTokenStr, 0, sizeof(nextTokenStr) );
+    memset( &nextVal, 0, sizeof(nextVal) );
+
+    // Prepare to read next token
+    SkipSpaceAndComments();
+
+    // Determine next token type, then read it
+    if( (nextCh == '_') || isalnum(nextCh) ) {
+      if( ReadIdent(nextTokenStr, sizeof(nextTokenStr)) ) {
+        nextToken = tkIdent;
+      }
+      return curToken;
+    }
+
+    if( isdigit(nextCh) ) {
+      if( ReadNum(&nextVal.valUint) ) {
+        nextVal.valType = valUint;
+        nextToken = valUint;
+      }
+      return curToken;
+    }
+
+/*
+    if( (nextCh == '"') || (nextCh == '\'') ) {
+      if( ReadString(&nextTokenStr, sizeof(nextTokenStr)) ) {
+        nextVal.valType = valString;
+        nextToken = valString;
+      }
+      return curToken;
+    }
+*/
+
+/*
+    if( ispunct(nextCh) ) {
+      nextToken = ReadOperator();
+    }
+*/
+
+    return curToken;
+  }
+
+  unsigned FindKeyword( char* identifier ) {
+    size_t leftIndex = 0;
+    size_t rightIndex = keywordCount;
+    size_t keywordIndex = keywordCount / 2;
+    int    compareCode = 0;
+
+    if( !(identifier && (*identifier)) ) {
+      return 0;
+    }
+
+    while( leftIndex < rightIndex ) {
+      compareCode = strcmp(keywordTable[keywordIndex].name, identifier);
+      if( compareCode == 0 ) {
+        return keywordTable[keywordIndex].token;
+      }
+
+      if( compareCode > 0 ) {
+        rightIndex = keywordIndex;
+      } else {
+        leftIndex = keywordIndex + 1;
+      }
+
+      keywordIndex = (leftIndex + rightIndex) / 2;
+    }
+
     return 0;
+  }
+
+  unsigned TranslateKeyword( unsigned originalToken, char* originalTokenStr ) {
+    unsigned keywordToken;
+
+    if( originalToken == tkIdent ) {
+      keywordToken = FindKeyword(originalTokenStr);
+      if( keywordToken ) {
+        return keywordToken;
+      }
+    }
+
+    return originalToken;
+  }
+
+  void BeginParse() {
+    // Pre-read first two characters
+    ReadChar();
+    ReadChar();
+
+    // Pre-process first two tokens
+    GetToken();
+    GetToken();
+
+    // Initialize C file
+    if( cFile ) {
+      fprintf( cFile, "\n#include \"%s\"\n", headerName );
+    } else {
+      printf( "C file not open\n" );
+      exit( errorCFileNotOpen );
+    }
+
+    // Initialize Header file
+    if( headerFile ) {
+      fprintf( headerFile, "#ifndef %s_H\n#define %s_H\n", baseName, baseName );
+    } else {
+      printf( "Header file not open\n" );
+      exit( errorHeaderFileNotOpen );
+    }
+  }
+
+  void ParseProgramHeader() {
+    unsigned programToken;
+    unsigned programNameToken;
+
+    // program PROGRAMNAME
+    programToken = TranslateKeyword(curToken, curTokenStr);
+    if( programToken != rsvdProgram ) {
+      printf( "Expected keyword program\n" );
+      exit( expectedKeywordProgram );
+    }
+    GetToken(); // Skip program
+
+    programNameToken = TranslateKeyword(curToken, curTokenStr);
+    if( programNameToken != tkIdent ) {
+      printf( "Expected undeclared identifier for program name\n" );
+      exit( expectedUndeclaredIdentifier );
+    }
+    memcpy( programName, curTokenStr, sizeof(curTokenStr) );
+    GetToken(); // Skip PROGRAMNAME
+  }
+
+  void ParseRun() {
+    unsigned keywordToken;
+
+    if( runDeclared ) {
+      printf( "run is already declared\n" );
+      exit( runAlreadyDeclared );
+    }
+    runDeclared = -1;
+    GetToken(); // Skip run
+
+    if( cFile ) {
+      fprintf( cFile, "\nint main( int argc, char* argv[] ) {\n" );
+    } else {
+      printf( "C file not open\n" );
+      exit( errorCFileNotOpen );
+    }
+
+    do {
+      keywordToken = TranslateKeyword(curToken, curTokenStr);
+      if( (keywordToken >= firstRsvd) && (keywordToken <= lastRsvd) ) {
+        switch( keywordToken ) {
+        case rsvdEnd:
+          ParseEndRun();
+          return;
+
+        default:
+          printf( "Expected end or statement\n" );
+          exit( expectedEndOrStatement );
+        }
+      }
+    } while( curToken );
+  }
+
+  void ParseEndRun() {
+    GetToken(); // Skip end
+
+    if( cFile ) {
+      fprintf( cFile, "  return 0;\n}\n" );
+    } else {
+      printf( "C file not open\n" );
+      exit( errorCFileNotOpen );
+    }
+  }
+
+  void ParseTopLevel() {
+    unsigned topLevelToken;
+    unsigned topLevelExitCode = expectedRunOrTopLevel;
+    char* topLevelExitStr = "Expected run, or top level keyword\n";
+
+    do {
+      topLevelToken = TranslateKeyword(curToken, curTokenStr);
+
+      switch( topLevelToken ) {
+      case 0:
+        return;
+
+      case rsvdRun:
+        ParseRun();
+        topLevelExitStr = "Expected top level keyword\n";
+        topLevelExitCode = expectedTopLevel;
+        break;
+
+      default:
+        printf( topLevelExitStr );
+        exit( topLevelExitCode );
+      }
+    } while( curToken );
+  }
+
+  void EndParse() {
+    GetToken(); // Skip end
+
+    // Finalize C file
+    if( runDeclared == 0 ) {
+      printf( "Expected run\n" );
+      exit( expectedRun );
+    }
+
+    // Finalize Header file
+    fprintf( headerFile, "\n#endif %s_H\n", baseName );
   }
 
 int main( int argc, char* argv[] ) {
@@ -463,42 +917,39 @@ int main( int argc, char* argv[] ) {
   retFile = OpenRet(retName);
   if( retFile == 0 ) {
     printf( "Error opening file %s\n", retName );
-    exit( 2 );
+    exit( errorOpeningRetFile );
   }
-  ReadChar();
-  ReadChar();
 
   // Create intermediate files
   cFile = CreateC(cName);
   if( cFile == 0 ) {
     printf( "Error creating file %s\n", cName );
-    exit( 2 );
+    exit( errorCreatingCFile);
   }
 
   headerFile = CreateHeader(headerName);
   if( headerFile == 0 ) {
     printf( "Error creating file %s\n", headerName );
-    exit( 2 );
+    exit( errorCreatingHeaderFile );
   }
 
   // Parse Retineo source into C intermediate files
   printf( "\nParsing %s...\n", retName );
 
-  SkipSpaceAndComments();
+  BeginParse();
+  ParseProgramHeader();
+  ParseTopLevel();
+  EndParse();
 
-  if( ReadIdent(nextIdent, sizeof(nextIdent)) == 0 ) {
-    printf( "Error reading identifier\n" );
-    exit( 3 );
-  } else {
-    printf( "nextIdent == %s\n", nextIdent );
-  }
+  CloseRet( &retFile );
+  CloseC( &cFile );
+  CloseHeader( &headerFile );
 
-  printf( "\n" );
+  printf( "Done.\n" );
 
   // Build executable from C intermediate files
   printf( "\nBuilding %s from %s...\n", exeName, headerName );
   printf( "\n" );
-
 
   // Release program resources
   Cleanup();
