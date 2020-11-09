@@ -49,6 +49,19 @@
     unsigned token;
   } Operator;
 
+  typedef struct ArrayDimension {
+    int minValue;
+    int maxValue;
+  } ArrayDimension;
+
+  typedef struct TypeSpec {
+    unsigned ptrType;
+    unsigned baseType;
+    char baseName[1024];
+    unsigned dimensionCount;
+    ArrayDimension* dimension;
+  } TypeSpec;
+
   int RunProgram( char* commandLine );
 
   void Cleanup();
@@ -83,6 +96,9 @@
   unsigned GetToken();
   unsigned FindKeyword( char* identifier );
   unsigned TranslateKeyword( unsigned originalToken, char* originalTokenStr );
+
+  int ReadTypeSpec( TypeSpec* destSpec );
+  void ReleaseTypeSpec( TypeSpec* typeSpec );
 
   void BeginParse();
   void ParseProgramHeader();
@@ -419,7 +435,7 @@
     strncpy( retName, argv[1], sizeof(retName) );
     fileExt = strrchr(retName, '.');
     if( fileExt == NULL ) {
-      strncat( retName, ".ret", sizeof(retName) );
+      strncat( retName, ".ret", sizeof(retName) - 1 );
     } else if( strlen(fileExt) == 1 ) {
       *fileExt = '\0';
     }
@@ -432,18 +448,18 @@
     }
     fileExt = strrchr(exeName, '.');
     if( fileExt == NULL ) {
-      strncat( exeName, ".exe", sizeof(exeName) );
+      strncat( exeName, ".exe", sizeof(exeName) - 1 );
     } else if( strlen(fileExt) == 1 ) {
-      strncat( exeName, "exe", sizeof(exeName) );
+      strncat( exeName, "exe", sizeof(exeName) - 1 );
     }
 
     // Set the C file name
     strncpy( cName, baseName, sizeof(cName) );
-    strncat( cName, ".rgc", sizeof(cName) );
+    strncat( cName, ".rgc", sizeof(cName) - 1 );
 
     // Set the C Header file name
     strncpy( headerName, baseName, sizeof(headerName) );
-    strncat( headerName, ".rgh", sizeof(headerName) );
+    strncat( headerName, ".rgh", sizeof(headerName) - 1 );
   }
 
   FILE* OpenRet( char* inRetName ) {
@@ -870,6 +886,63 @@
     }
 
     return originalToken;
+  }
+
+  int ReadTypeSpec( TypeSpec* destSpec ) {
+    TypeSpec tempSpec = {};
+    int minIndex;
+    int maxIndex;
+
+    if( !(retFile && destSpec) ) {
+      return 0;
+    }
+
+    if( (curToken == ptrData) || (curToken == ptrRef) ) {
+      tempSpec.ptrType = curToken;
+      GetToken(); // Skip # or *
+    }
+    if( (curToken == ptrData) || (curToken == ptrRef) ) {
+      return 0; // Double pointers or references not directly supported
+    }
+
+    if( (curToken >= firstType) && (curToken <= lastType) ) {
+      tempSpec.baseType = curToken;
+      memcpy( tempSpec.baseName, curTokenStr, sizeof(curTokenStr) );
+      GetToken(); // Skip base type
+    }
+
+    if( curToken == tkLBrace ) {
+      GetToken(); // Skip array dimension [
+;;;
+      do {
+        if( ReadNum(&minIndex) == 0 ) {
+          return 0;
+        }
+        if( curToken == opSub ) {
+          minIndex = -minIndex;
+        }
+        maxIndex = minIndex;
+        GetToken(); // Skip number
+
+        if( curToken == tkComma ) {
+          GetToken(); // Skip , and repeat
+          continue;
+        }
+      } while( curToken );
+    }
+
+    return 0;
+
+  Cleanup:
+    ReleaseTypeSpec( &tempSpec );
+    return 0;
+  }
+
+  void ReleaseTypeSpec( TypeSpec* typeSpec ) {
+    if( typeSpec && typeSpec->dimension ) {
+      free( (typeSpec->dimension) );
+      (typeSpec->dimension) = NULL;
+    }
   }
 
   void BeginParse() {
