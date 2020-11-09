@@ -44,6 +44,11 @@
     unsigned token;
   } Keyword;
 
+  typedef struct Operator {
+    char* text;
+    unsigned token;
+  } Operator;
+
   int RunProgram( char* commandLine );
 
   void Cleanup();
@@ -72,6 +77,8 @@
   int ReadOctalNum( unsigned* destNum );
   int ReadHexNum( unsigned* destNum );
   int ReadNum( unsigned* destNum );
+  int ReadString( char* destString, size_t destMaxLen );
+  unsigned ReadOperator();
 
   unsigned GetToken();
   unsigned FindKeyword( char* identifier );
@@ -298,18 +305,78 @@
   };
   const size_t keywordCount = sizeof(keywordTable) / sizeof(keywordTable[0]);
 
+  const Operator operTable[] = {
+    "!",    unaryIsNot,
+    "!=",   opNotEq,
+    "#",    tkHash,
+    "%",    opMod,
+    "%=",   assignMod,
+    "&",    opAnd,
+    "&&",   opAndIs,
+    "&=",   assignAnd,
+    "(",    tkLParen,
+    ")",    tkRParen,
+    "*",    opMul,
+    "*=",   assignMul,
+    "+",    opAdd,
+    "++",   opPostInc,
+    "+=",   assignAdd,
+    ",",    tkComma,
+    "-",    opSub,
+    "--",   opPostDec,
+    "-=",   assignSub,
+    ".",    tkDot,
+    "..",   tkDotDot,
+    "/",    opDiv,
+    "/=",   assignDiv,
+    ":",    tkColon,
+    "<",    opLT,
+//    "<-<",  opSRol,
+//    "<-<=", assignSRol,
+    "<<",   opShl,
+//    "<<<",  opRol,
+//    "<<<=", assignRol,
+    "<<=",  assignShl,
+    "<=",   opLTEq,
+    "=",    assignTo,
+    "==",   opEq,
+    ">",    opGT,
+//    ">->",  opSRor,
+//    ">->=", assignSRor,
+    ">=",   opGTEq,
+    ">>",   opShr,
+    ">>=",  assignShr,
+//    ">>>",  opRor,
+//    ">>>=", assignRor,
+    "@",    tkAt,
+    "[",    tkLBrace,
+    "[[",   tkLDoubleBrace,
+    "]",    tkRBrace,
+    "]]",   tkRDoubleBrace,
+    "^",    opXor,
+    "^=",   assignXor,
+    "|",    opOr,
+    "|=",   assignOr,
+//    "|>>",  opSShr,
+//    "|>>=", assignSShr,
+    "||",   opOrIs,
+    "~",    unaryNot,
+    "~=",   assignNot
+  };
+  const size_t operCount = sizeof(operTable) / sizeof(operTable[0]);
+
   char programName[1024] = {};
   int runDeclared = 0;
 
   unsigned curToken = 0;
   char curCh = 0;
   char curTokenStr[1024] = {};
-  TokenVal curVal = {};
+  TokenVal curTokenVal = {};
 
   unsigned nextToken = 0;
   char nextCh = 0;
   char nextTokenStr[1024] = {};
-  TokenVal nextVal = {};
+  TokenVal nextTokenVal = {};
 
 /*
  * Implementations
@@ -685,51 +752,81 @@
     return -1;
   }
 
+  int ReadString( char* destString, size_t destMaxLen ) {
+    size_t destIndex = 0;
+    char quoteCh;
+
+    if( !(retFile && destString && destMaxLen) ) {
+      return 0;
+    }
+
+    if( (curCh != '"') && (curCh != '\'') ) {
+      return 0;
+    }
+    quoteCh = curCh;
+    ReadChar(); // Skip opening quote character
+
+    while( curCh ) {
+      if( curCh == quoteCh ) {
+        break;
+      }
+
+      if( (destIndex + 1) < destMaxLen ) {
+        destString[destIndex++] = curCh;
+      }
+      ReadChar();
+    }
+    destString[destIndex] = '\0';
+    ReadChar(); // Skip closing quote character
+
+    return -1;
+  }
+
+  unsigned ReadOperator() {
+    return 0;
+  }
+
   unsigned GetToken() {
     // Set current variables
     curToken = nextToken;
     memcpy( curTokenStr, nextTokenStr, sizeof(nextTokenStr) );
-    memcpy( &curVal, &nextVal, sizeof(nextVal) );
+    memcpy( &curTokenVal, &nextTokenVal, sizeof(nextTokenVal) );
 
     // Initialize next variables
     nextToken = 0;
     memset( nextTokenStr, 0, sizeof(nextTokenStr) );
-    memset( &nextVal, 0, sizeof(nextVal) );
+    memset( &nextTokenVal, 0, sizeof(nextTokenVal) );
 
     // Prepare to read next token
     SkipSpaceAndComments();
 
     // Determine next token type, then read it
-    if( (nextCh == '_') || isalnum(nextCh) ) {
+    if( isdigit(curCh) ) {
+      if( ReadNum(&nextTokenVal.valUint) ) {
+        nextTokenVal.valType = valUint;
+        nextToken = valUint;
+      }
+      return curToken;
+    }
+
+    if( (curCh == '_') || isalnum(curCh) ) {
       if( ReadIdent(nextTokenStr, sizeof(nextTokenStr)) ) {
         nextToken = tkIdent;
       }
       return curToken;
     }
 
-    if( isdigit(nextCh) ) {
-      if( ReadNum(&nextVal.valUint) ) {
-        nextVal.valType = valUint;
-        nextToken = valUint;
-      }
-      return curToken;
-    }
-
-/*
-    if( (nextCh == '"') || (nextCh == '\'') ) {
-      if( ReadString(&nextTokenStr, sizeof(nextTokenStr)) ) {
-        nextVal.valType = valString;
+    if( (curCh == '"') || (curCh == '\'') ) {
+      if( ReadString(nextTokenStr, sizeof(nextTokenStr)) ) {
+        nextTokenVal.valType = valString;
         nextToken = valString;
       }
       return curToken;
     }
-*/
 
-/*
     if( ispunct(nextCh) ) {
       nextToken = ReadOperator();
     }
-*/
 
     return curToken;
   }
@@ -839,6 +936,16 @@
       exit( errorCFileNotOpen );
     }
 
+    // Parse one or more local variable declaration blocks
+    do {
+      keywordToken = TranslateKeyword(curToken, curTokenStr);
+      if( keywordToken != rsvdVar ) {
+        break;
+      }
+      ///TODO: ParseLocalVarBlock
+    } while( curToken );
+
+    // Parse run block statements until end of run block
     do {
       keywordToken = TranslateKeyword(curToken, curTokenStr);
       if( (keywordToken >= firstRsvd) && (keywordToken <= lastRsvd) ) {
@@ -875,9 +982,6 @@
       topLevelToken = TranslateKeyword(curToken, curTokenStr);
 
       switch( topLevelToken ) {
-      case 0:
-        return;
-
       case rsvdRun:
         ParseRun();
         topLevelExitStr = "Expected top level keyword\n";
@@ -885,8 +989,10 @@
         break;
 
       default:
-        printf( topLevelExitStr );
-        exit( topLevelExitCode );
+        if( topLevelToken ) {
+          printf( topLevelExitStr );
+          exit( topLevelExitCode );
+        }
       }
     } while( curToken );
   }
