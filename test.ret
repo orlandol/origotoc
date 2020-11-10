@@ -10,5 +10,9 @@
 // Single line comment
 
 program test
+
 run
+  var
+    @uint v1
+  end
 end

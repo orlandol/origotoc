@@ -27,6 +27,7 @@
     errorCFileNotOpen,
     errorHeaderFileNotOpen,
     expectedEndOrStatement,
+    errorRetFileNotOpen,
   } ErrorCodes;
 
   typedef struct TokenVal {
@@ -49,17 +50,11 @@
     unsigned token;
   } Operator;
 
-  typedef struct ArrayDimension {
-    int minValue;
-    int maxValue;
-  } ArrayDimension;
-
   typedef struct TypeSpec {
     unsigned ptrType;
     unsigned baseType;
+    size_t indexCount;
     char baseName[1024];
-    unsigned dimensionCount;
-    ArrayDimension* dimension;
   } TypeSpec;
 
   int RunProgram( char* commandLine );
@@ -98,7 +93,6 @@
   unsigned TranslateKeyword( unsigned originalToken, char* originalTokenStr );
 
   int ReadTypeSpec( TypeSpec* destSpec );
-  void ReleaseTypeSpec( TypeSpec* typeSpec );
 
   void BeginParse();
   void ParseProgramHeader();
@@ -317,7 +311,8 @@
     "uint",    typeUint,
     "uint16",  typeUint16,
     "uint32",  typeUint32,
-    "uint8",   typeUint8
+    "uint8",   typeUint8,
+    "var",     rsvdVar
   };
   const size_t keywordCount = sizeof(keywordTable) / sizeof(keywordTable[0]);
 
@@ -890,8 +885,7 @@
 
   int ReadTypeSpec( TypeSpec* destSpec ) {
     TypeSpec tempSpec = {};
-    int minIndex;
-    int maxIndex;
+    unsigned rsvdToken;
 
     if( !(retFile && destSpec) ) {
       return 0;
@@ -901,48 +895,45 @@
       tempSpec.ptrType = curToken;
       GetToken(); // Skip # or *
     }
-    if( (curToken == ptrData) || (curToken == ptrRef) ) {
-      return 0; // Double pointers or references not directly supported
-    }
 
-    if( (curToken >= firstType) && (curToken <= lastType) ) {
+    rsvdToken = TranslateKeyword(curToken, curTokenStr);
+
+    if( (rsvdToken >= firstType) && (rsvdToken <= lastType) ) {
+      if( (rsvdToken == ptrData) || (rsvdToken == ptrRef) ) {
+        return 0; // Double pointers or references not directly supported
+      }
       tempSpec.baseType = curToken;
       memcpy( tempSpec.baseName, curTokenStr, sizeof(curTokenStr) );
       GetToken(); // Skip base type
     }
 
     if( curToken == tkLBrace ) {
-      GetToken(); // Skip array dimension [
-;;;
-      do {
-        if( ReadNum(&minIndex) == 0 ) {
+      GetToken(); // Skip opening array bracket [
+
+      switch( curToken ) {
+      case valUint:
+        tempSpec.indexCount = curTokenVal.valUint;
+        GetToken(); // Skip uint value
+        break;
+
+      case tkRBrace:
+        if( tempSpec.ptrType == 0 ) {
           return 0;
         }
-        if( curToken == opSub ) {
-          minIndex = -minIndex;
-        }
-        maxIndex = minIndex;
-        GetToken(); // Skip number
+        break;
 
-        if( curToken == tkComma ) {
-          GetToken(); // Skip , and repeat
-          continue;
-        }
-      } while( curToken );
+      default:
+        return 0;
+      }
+
+      if( curToken != tkRBrace ) {
+        return 0;
+      }
+      GetToken(); // Skip closing array bracket ]
     }
 
-    return 0;
-
-  Cleanup:
-    ReleaseTypeSpec( &tempSpec );
-    return 0;
-  }
-
-  void ReleaseTypeSpec( TypeSpec* typeSpec ) {
-    if( typeSpec && typeSpec->dimension ) {
-      free( (typeSpec->dimension) );
-      (typeSpec->dimension) = NULL;
-    }
+    memcpy( destSpec, &tempSpec, sizeof(tempSpec) );
+    return -1;
   }
 
   void BeginParse() {
@@ -992,6 +983,28 @@
     GetToken(); // Skip PROGRAMNAME
   }
 
+  void ParseLocalVarBlock() {
+    TypeSpec varTypeSpec;
+    unsigned rsvdToken;
+
+    if( retFile == NULL ) {
+      printf( "Error file not open\n" );
+      exit( errorRetFileNotOpen );
+    }
+
+    GetToken(); // Skip keyword var
+
+    while( curToken ) {
+//      ReadTypeSpec( &varTypeSpec );;;
+
+      rsvdToken = TranslateKeyword(curToken, curTokenStr);
+      if( rsvdToken == rsvdEnd ) {
+        GetToken(); // Skip keyword end
+        break;
+      }
+    }
+  }
+
   void ParseRun() {
     unsigned keywordToken;
 
@@ -1009,14 +1022,11 @@
       exit( errorCFileNotOpen );
     }
 
-    // Parse one or more local variable declaration blocks
-    do {
-      keywordToken = TranslateKeyword(curToken, curTokenStr);
-      if( keywordToken != rsvdVar ) {
-        break;
-      }
-      ///TODO: ParseLocalVarBlock
-    } while( curToken );
+    // Parse local variable declaration block
+    keywordToken = TranslateKeyword(curToken, curTokenStr);
+    if( keywordToken == rsvdVar ) {
+      ParseLocalVarBlock( /*&localTab*/ );
+    }
 
     // Parse run block statements until end of run block
     do {
@@ -1031,7 +1041,11 @@
           printf( "Expected end or statement\n" );
           exit( expectedEndOrStatement );
         }
+        continue;
       }
+
+      printf( "Expected end or statement\n" );
+      exit( expectedEndOrStatement );
     } while( curToken );
   }
 
@@ -1053,7 +1067,6 @@
 
     do {
       topLevelToken = TranslateKeyword(curToken, curTokenStr);
-
       switch( topLevelToken ) {
       case rsvdRun:
         ParseRun();

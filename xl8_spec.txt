@@ -8,10 +8,10 @@ program IDENT
 
 ==
 
-type @TYPENAME[CEXPR, ...] IDENT = CEXPR
+type @TYPENAME[CEXPR] IDENT = CEXPR
 
 #define DEFAULT_IDENT (CEXPR)
-typedef TYPENAME[CEXPR,...]* IDENT;
+typedef TYPENAME[CEXPR]* IDENT;
 
 ==
 
