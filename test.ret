@@ -1,4 +1,4 @@
-
+ 
 // Single line comment
 
 /*
@@ -11,8 +11,8 @@
 
 program test
 
-run
+ruun
   var
-    @uint v1
+    uint[100] v1
   end
 end

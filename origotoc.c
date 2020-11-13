@@ -10,25 +10,25 @@
 
   typedef enum ErrorCodes {
     errorInvalidCommandline = 1,
-    errorSLCommentClosedWithEOF,
-    errorMLCommentNestedTooDeep,
-    errorMLCommentClosedWithEOF,
-    errorMLCommentClosedBeforeOpening,
-    errorOpeningRetFile,
-    errorCreatingCFile,
-    errorCreatingHeaderFile,
-    errorReadingIdentifier,
-    expectedKeywordProgram,
-    expectedUndeclaredIdentifier,
-    expectedRun,
-    expectedRunOrTopLevel,
-    expectedTopLevel,
-    runAlreadyDeclared,
-    errorCFileNotOpen,
-    errorHeaderFileNotOpen,
-    expectedEndOrStatement,
-    errorRetFileNotOpen,
-    expectedLocalVarDecl,
+    errorSLCommentClosedWithEOF = 2,
+    errorMLCommentNestedTooDeep = 3,
+    errorMLCommentClosedWithEOF = 4,
+    errorMLCommentClosedBeforeOpening = 5,
+    errorOpeningRetFile = 6,
+    errorCreatingCFile = 7,
+    errorCreatingHeaderFile = 8,
+    errorReadingIdentifier = 9,
+    expectedKeywordProgram = 10,
+    expectedUndeclaredIdentifier = 11,
+    expectedRun = 12,
+    expectedRunOrTopLevel = 13,
+    expectedTopLevel = 14,
+    runAlreadyDeclared = 15,
+    errorCFileNotOpen = 16,
+    errorHeaderFileNotOpen = 17,
+    expectedEndOrStatement = 18,
+    errorRetFileNotOpen = 19,
+    expectedLocalVarDecl = 20,
   } ErrorCodes;
 
   typedef struct TokenVal {
@@ -377,12 +377,19 @@
   char programName[1024] = {};
   int runDeclared = 0;
 
+  unsigned line = 1;
+  unsigned column = 1;
+
+  unsigned curLine = 1;
+  unsigned curColumn = 1;
   unsigned curToken = 0;
-  char curCh = 0;
   char curTokenStr[1024] = {};
   TokenVal curTokenVal = {};
 
+  unsigned nextLine = 1;
+  unsigned nextColumn = 1;
   unsigned nextToken = 0;
+  char curCh = 0;
   char nextCh = 0;
   char nextTokenStr[1024] = {};
   TokenVal nextTokenVal = {};
@@ -524,6 +531,16 @@
         return 0;
       }
       nextCh = (char)result;
+
+      column++;
+      if( curCh == '\n' ) {
+        line++;
+
+        column = 1;
+        if( nextCh ) {
+          column--;
+        }
+      }
     }
 
     return curCh;
@@ -554,7 +571,7 @@
       if( (curCh == '/') && (nextCh == '/') ) {
         do {
           if( ReadChar() == 0 ) {
-            printf( "Single-line comments must end with CR and/or LF\n" );
+            printf( "[L%u,C%u] Single-line comments must end with CR and/or LF\n", line, column );
             exit(errorSLCommentClosedWithEOF);
           }
         } while( (curCh != '\r') && (curCh != '\n') );
@@ -567,12 +584,12 @@
           do {
             if( (curCh == '/') && (nextCh == '*') ) {
               if( commentLevel == ((unsigned)-1) ) {
-                printf( "Multi-line comment is nested too many levels deep\n" );
+                printf( "[L%u,C%u] Multi-line comment is nested too many levels deep\n", line, column );
                 exit(errorMLCommentNestedTooDeep);
               }
               commentLevel++;
               if( !(ReadChar() && ReadChar()) ) {
-                printf( "Unexpected EOF in multi-line comment opened with /*\n" );
+                printf( "[L%u,C%u] Unexpected EOF in multi-line comment opened with /*\n", line, column );
                 exit(errorMLCommentClosedWithEOF);
               }
               continue;
@@ -580,7 +597,7 @@
 
             if( (curCh == '*') && (nextCh == '/') ) {
               if( commentLevel == 0 ) {
-                printf( "Each multi-line comment must be opened with /* before closing with */\n" );
+                printf( "[L%u,C%u] Each multi-line comment must be opened with /* before closing with */\n", line, column );
                 exit(errorMLCommentClosedBeforeOpening);
               }
               commentLevel--;
@@ -845,6 +862,8 @@
 
   unsigned GetToken() {
     // Set current variables
+    curLine = nextLine;
+    curColumn = nextColumn;
     curToken = nextToken;
     memcpy( curTokenStr, nextTokenStr, sizeof(nextTokenStr) );
     memcpy( &curTokenVal, &nextTokenVal, sizeof(nextTokenVal) );
@@ -856,6 +875,9 @@
 
     // Prepare to read next token
     SkipSpaceAndComments();
+
+    nextLine = line;
+    nextColumn = column;
 
     // Determine next token type, then read it
     if( isdigit(curCh) ) {
@@ -975,6 +997,9 @@ printf( "ReadTypeSpec()\n" );
     ReadChar();
     ReadChar();
 
+    line = 1;
+    column = 1;
+
     // Pre-process first two tokens
     GetToken();
     GetToken();
@@ -1004,13 +1029,13 @@ printf( "ParseProgramHeader()\n" );
     // program PROGRAMNAME
     programToken = FindKeyword(curTokenStr);
     if( programToken != rsvdProgram ) {
-      printf( "Expected keyword program\n" );
+      printf( "[L%u,C%u] Expected keyword program\n", curLine, curColumn );
       exit( expectedKeywordProgram );
     }
     GetToken(); // Skip program
 
     if( curToken != tkIdent ) {
-      printf( "Expected undeclared identifier for program name\n" );
+      printf( "[L%u,C%u] Expected undeclared identifier for program name\n", curLine, curColumn );
       exit( expectedUndeclaredIdentifier );
     }
     memcpy( programName, curTokenStr, sizeof(curTokenStr) );
@@ -1029,7 +1054,6 @@ printf( "ParseLocalVarBlock()\n" );
 
     GetToken(); // Skip keyword var
 
-printf( "ParseLocalVarBlock(): curToken == %u; ptrData == %u; ptrRef == %u\n", curToken, ptrData, ptrRef );
     while( curToken ) {
       ReadTypeSpec( &varTypeSpec );
       GetToken(); // Skip ident
@@ -1040,7 +1064,7 @@ printf( "ParseLocalVarBlock(): curToken == %u; ptrData == %u; ptrRef == %u\n", c
         return;
       }
 
-      printf( "Expected local variable declaration or end\n" );
+      printf( "[L%u,C%u] Expected local variable declaration or end\n", curLine, curColumn );
       exit( expectedLocalVarDecl );
     }
   }
@@ -1050,13 +1074,12 @@ printf( "ParseLocalVarBlock(): curToken == %u; ptrData == %u; ptrRef == %u\n", c
 
 printf( "ParseRun() entered\n" );
     if( runDeclared ) {
-      printf( "run is already declared\n" );
+      printf( "[L%u,C%u] run is already declared\n", curLine, curColumn );
       exit( runAlreadyDeclared );
     }
     runDeclared = -1;
     GetToken(); // Skip run
 
-printf( "ParseRun(): curToken == %u; rsvdVar == %u\n", curToken, rsvdVar );
     if( cFile ) {
       fprintf( cFile, "\nint main( int argc, char* argv[] ) {\n" );
     } else {
@@ -1081,13 +1104,13 @@ printf( "ParseRun() main loop\n" );
           return;
 
         default:
-          printf( "Expected end or statement\n" );
+          printf( "[L%u,C%u] Expected end or statement\n", curLine, curColumn );
           exit( expectedEndOrStatement );
         }
         continue;
       }
 
-      printf( "Expected end or statement: curTokenStr == %s; nextTokenStr == %s\n", curTokenStr, nextTokenStr );
+      printf( "[L%u,C%u] Expected end or statement\n", curLine, curColumn );
       exit( expectedEndOrStatement );
     } while( curToken );
   }
@@ -1105,7 +1128,7 @@ printf( "ParseEndRun()\n" );
   }
 
   void ParseTopLevel() {
-    char* topLevelExitStr = "Expected run, or top level keyword\n";
+    char* topLevelExitStr = "Expected run, or top level keyword";
     unsigned topLevelExitCode = expectedRunOrTopLevel;
     unsigned keywordToken;
 
@@ -1114,18 +1137,16 @@ printf( "ParseTopLevel()\n" );
 printf( "ParseTopLevel() main loop\n" );
       keywordToken = FindKeyword(curTokenStr);
 
-      switch( keywordToken ) {
-      case rsvdRun:
+      if( keywordToken == rsvdRun ) {
         ParseRun();
-        topLevelExitStr = "Expected top level keyword\n";
+        topLevelExitStr = "Expected top level keyword";
         topLevelExitCode = expectedTopLevel;
-        break;
+        continue;
+      }
 
-      default:
-        if( keywordToken ) {
-          printf( topLevelExitStr );
-          exit( topLevelExitCode );
-        }
+      if( curToken ) {
+        printf( "[L%u,C%u] %s\n", curLine, curColumn, topLevelExitStr );
+        exit( topLevelExitCode );
       }
     } while( curToken );
   }
@@ -1136,7 +1157,7 @@ printf( "EndParse()\n" );
 
     // Finalize C file
     if( runDeclared == 0 ) {
-      printf( "Expected run\n" );
+      printf( "[L%u,C%u] Expected run\n", curLine, curColumn );
       exit( expectedRun );
     }
 
