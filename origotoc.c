@@ -31,11 +31,6 @@
     expectedLocalVarDecl,
   } ErrorCodes;
 
-  typedef enum GetTokenFlags {
-    gtfTranslateKeyword = 1,
-    gtfLookupIdent = 2
-  } GetTokenFlags;
-
   typedef struct TokenVal {
     unsigned valType;
 
@@ -94,7 +89,7 @@
   int ReadString( char* destString, size_t destMaxLen );
   unsigned ReadOperator();
 
-  unsigned GetToken( unsigned gtfFlags );
+  unsigned GetToken();
   unsigned FindKeyword( char* identifier );
 
   int ReadTypeSpec( TypeSpec* destSpec );
@@ -137,8 +132,6 @@
       tkRDoubleBrace,
       tkComma,
       tkColon,
-      tkAt,
-      tkHash,
 
     // Reserved high level keyword tokens
     rsvdIdent = (1 << 9),
@@ -324,7 +317,7 @@
   const Operator operTable[] = {
     "!",    unaryIsNot,
     "!=",   opNotEq,
-    "#",    tkHash,
+    "#",    ptrRef,
     "%",    opMod,
     "%=",   assignMod,
     "&",    opAnd,
@@ -364,7 +357,7 @@
     ">>=",  assignShr,
 //    ">>>",  opRor,
 //    ">>>=", assignRor,
-    "@",    tkAt,
+    "@",    ptrData,
     "[",    tkLBrace,
     "[[",   tkLDoubleBrace,
     "]",    tkRBrace,
@@ -850,9 +843,7 @@
     return token;
   }
 
-  unsigned GetToken( unsigned gtfFlags ) {
-    unsigned tempToken;
-
+  unsigned GetToken() {
     // Set current variables
     curToken = nextToken;
     memcpy( curTokenStr, nextTokenStr, sizeof(nextTokenStr) );
@@ -878,17 +869,6 @@
     if( (curCh == '_') || isalnum(curCh) ) {
       if( ReadIdent(nextTokenStr, sizeof(nextTokenStr)) ) {
         nextToken = tkIdent;
-
-        if( gtfFlags & gtfTranslateKeyword ) {
-          tempToken = FindKeyword(nextTokenStr);
-          if( tempToken ) {
-            nextToken = tempToken;
-          }
-        }
-
-        if( (gtfFlags & gtfLookupIdent) && (nextToken == tkIdent) ) {
-          ///TODO: RetrieveSym( nextTokenStr )
-        }
       }
       return curToken;
     }
@@ -938,6 +918,9 @@
 
   int ReadTypeSpec( TypeSpec* destSpec ) {
     TypeSpec tempSpec = {};
+    unsigned reservedToken;
+
+printf( "ReadTypeSpec()\n" );
 
     if( !(retFile && destSpec) ) {
       return 0;
@@ -945,25 +928,26 @@
 
     if( (curToken == ptrData) || (curToken == ptrRef) ) {
       tempSpec.ptrType = curToken;
-      GetToken(gtfTranslateKeyword); // Skip # or *
+      GetToken(); // Skip # or *
     }
 
-    if( (curToken >= firstType) && (curToken <= lastType) ) {
-      if( (curToken == ptrData) || (curToken == ptrRef) ) {
+    reservedToken = FindKeyword(curTokenStr);
+    if( (reservedToken >= firstType) && (reservedToken <= lastType) ) {
+      if( (reservedToken == ptrData) || (reservedToken == ptrRef) ) {
         return 0; // Double pointers or references not directly supported
       }
       tempSpec.baseType = curToken;
       memcpy( tempSpec.baseName, curTokenStr, sizeof(curTokenStr) );
-      GetToken(0); // Skip base type
+      GetToken(); // Skip base type
     }
 
     if( curToken == tkLBrace ) {
-      GetToken(0); // Skip opening array bracket [
+      GetToken(); // Skip opening array bracket [
 
       switch( curToken ) {
       case valUint:
         tempSpec.indexCount = curTokenVal.valUint;
-        GetToken(0); // Skip uint value
+        GetToken(); // Skip uint value
         break;
 
       case tkRBrace:
@@ -979,7 +963,7 @@
       if( curToken != tkRBrace ) {
         return 0;
       }
-      GetToken(0); // Skip closing array bracket ]
+      GetToken(); // Skip closing array bracket ]
     }
 
     memcpy( destSpec, &tempSpec, sizeof(tempSpec) );
@@ -992,9 +976,10 @@
     ReadChar();
 
     // Pre-process first two tokens
-    GetToken(0);
-    GetToken(0);
+    GetToken();
+    GetToken();
 
+printf( "BeginParse()\n" );
     // Initialize C file
     if( cFile ) {
       fprintf( cFile, "\n#include \"%s\"\n", headerName );
@@ -1014,6 +999,7 @@
 
   void ParseProgramHeader() {
     unsigned programToken;
+printf( "ParseProgramHeader()\n" );
 
     // program PROGRAMNAME
     programToken = FindKeyword(curTokenStr);
@@ -1021,33 +1007,36 @@
       printf( "Expected keyword program\n" );
       exit( expectedKeywordProgram );
     }
-    GetToken(gtfTranslateKeyword); // Skip program
+    GetToken(); // Skip program
 
     if( curToken != tkIdent ) {
       printf( "Expected undeclared identifier for program name\n" );
       exit( expectedUndeclaredIdentifier );
     }
     memcpy( programName, curTokenStr, sizeof(curTokenStr) );
-    GetToken(0); // Skip PROGRAMNAME
+    GetToken(); // Skip PROGRAMNAME
   }
 
   void ParseLocalVarBlock() {
     TypeSpec varTypeSpec;
     unsigned rsvdToken;
 
+printf( "ParseLocalVarBlock()\n" );
     if( retFile == NULL ) {
       printf( "Error file not open\n" );
       exit( errorRetFileNotOpen );
     }
 
-    GetToken(gtfTranslateKeyword); // Skip keyword var
+    GetToken(); // Skip keyword var
 
+printf( "ParseLocalVarBlock(): curToken == %u; ptrData == %u; ptrRef == %u\n", curToken, ptrData, ptrRef );
     while( curToken ) {
       ReadTypeSpec( &varTypeSpec );
+      GetToken(); // Skip ident
 
       rsvdToken = FindKeyword(curTokenStr);
       if( rsvdToken == rsvdEnd ) {
-        GetToken(0); // Skip keyword end
+        GetToken(); // Skip keyword end
         return;
       }
 
@@ -1057,13 +1046,17 @@
   }
 
   void ParseRun() {
+    unsigned reservedToken;
+
+printf( "ParseRun() entered\n" );
     if( runDeclared ) {
       printf( "run is already declared\n" );
       exit( runAlreadyDeclared );
     }
     runDeclared = -1;
-    GetToken(gtfTranslateKeyword); // Skip run
+    GetToken(); // Skip run
 
+printf( "ParseRun(): curToken == %u; rsvdVar == %u\n", curToken, rsvdVar );
     if( cFile ) {
       fprintf( cFile, "\nint main( int argc, char* argv[] ) {\n" );
     } else {
@@ -1072,14 +1065,17 @@
     }
 
     // Parse local variable declaration block
-    if( curToken == rsvdVar ) {
+    reservedToken = FindKeyword(curTokenStr);
+    if( reservedToken == rsvdVar ) {
       ParseLocalVarBlock();
     }
 
     // Parse run block statements until end of run block
     do {
-      if( (curToken >= firstRsvd) && (curToken <= lastRsvd) ) {
-        switch( curToken ) {
+printf( "ParseRun() main loop\n" );
+      reservedToken = FindKeyword(curTokenStr);
+      if( (reservedToken >= firstRsvd) && (reservedToken <= lastRsvd) ) {
+        switch( reservedToken ) {
         case rsvdEnd:
           ParseEndRun();
           return;
@@ -1090,11 +1086,15 @@
         }
         continue;
       }
+
+      printf( "Expected end or statement: curTokenStr == %s; nextTokenStr == %s\n", curTokenStr, nextTokenStr );
+      exit( expectedEndOrStatement );
     } while( curToken );
   }
 
   void ParseEndRun() {
-    GetToken(0); // Skip end
+printf( "ParseEndRun()\n" );
+    GetToken(); // Skip end
 
     if( cFile ) {
       fprintf( cFile, "  return 0;\n}\n" );
@@ -1109,7 +1109,9 @@
     unsigned topLevelExitCode = expectedRunOrTopLevel;
     unsigned keywordToken;
 
+printf( "ParseTopLevel()\n" );
     do {
+printf( "ParseTopLevel() main loop\n" );
       keywordToken = FindKeyword(curTokenStr);
 
       switch( keywordToken ) {
@@ -1129,7 +1131,8 @@
   }
 
   void EndParse() {
-    GetToken(0); // Skip end
+printf( "EndParse()\n" );
+    GetToken(); // Skip end
 
     // Finalize C file
     if( runDeclared == 0 ) {
