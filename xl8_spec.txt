@@ -8,10 +8,17 @@ program IDENT
 
 ==
 
-type @TYPENAME[CEXPR] IDENT = CEXPR
+const TYPESPEC IDENT = CEXPR
 
-#define DEFAULT_IDENT (CEXPR)
-typedef TYPENAME[CEXPR]* IDENT;
+static const TYPESPEC IDENT = CEXPR;
+
+==
+
+enum BASETYPE IDENT
+  IDENT, ... = CEXPR
+  ...
+end
+
 
 ==
 
@@ -28,9 +35,10 @@ typedef struct IDENT
 
 ==
 
-const TYPESPEC IDENT = CEXPR
+type @TYPENAME[CEXPR] IDENT = CEXPR
 
-static const TYPESPEC IDENT = CEXPR;
+#define DEFAULT_IDENT (CEXPR)
+typedef TYPENAME[CEXPR]* IDENT;
 
 ==
 
@@ -42,6 +50,28 @@ end
 TYPESPEC IDENT = CEXPR;
 TYPESPEC ... = CEXPR;
 ...
+
+==
+
+import TYPESPEC IDENT( TYPESPEC IDENT, ... )
+  from FILENAME as IDENT
+
+// To intermediate Header file
+extern __declspec(dllimport) TYPESPEC IDENT( TYPESPEC IDENT, ... );
+
+// To list sorted by DLL name
+// Then all to PROGNAME.def in EndParse()
+...
+LIBRARY DLLFILENAME
+EXPORTS
+IDENT
+...
+
+==
+
+funcdecl TYPESPEC IDENT( TYPESPEC IDENT, ... )
+
+TYPESPEC IDENT( TYPESPEC IDENT, ... );
 
 ==
 
@@ -57,7 +87,11 @@ func TYPESPEC IDENT( TYPESPEC IDENT, ... )
   ...
 end
 
-TYPESPEC IDENT( TYPESPEC IDENT, TYPESPEC ..., ... ) {
+// To intermediate Header file
+TYPESPEC IDENT( TYPESPEC IDENT, ... );
+
+// To intermediate C file
+TYPESPEC IDENT( TYPESPEC IDENT, ... ) {
   TYPESPEC IDENT = CEXPR;
   TYPESPEC ... = CEXPR;
   ...
@@ -70,26 +104,17 @@ TYPESPEC IDENT( TYPESPEC IDENT, TYPESPEC ..., ... ) {
 
 ==
 
-import TYPESPEC IDENT( TYPESPEC IDENT, ... )
-  from FILENAME as IDENT
-
-extern TYPESPEC IDENT( TYPESPEC IDENT, TYPESPEC ..., ... );
-// PROGNAME.def
-extern IMPORTNAME, FILENAME
-
-==
-
 object IDENT
   inherits OBJNAME, ...
 mutable
 immutable
-  TYPESPEC IDENT, ...
+  TYPESPEC FIELDIDENT, ...
   ...
 end
 
 typedef struct IDENT {
-  // Copy OBJNAME, ... members
-  TYPESPEC IDENT, ...;
+  TYPESPEC INHERITEDFIELDNAME, ...;
+  TYPESPEC FIELDIDENT, ...;
 } IDENT;
 
 ==
@@ -101,11 +126,16 @@ abstract IDENT
   method TYPESPEC IDENT( TYPESPEC IDENT, ... )
 end
 
-typedef struct IDENT {
-  // Copy IFNAME, ...
-  TYPESPEC (*MTHDNAME)IDENT( TYPESPEC IDENT, TYPESPEC ..., ... );
+typedef struct IFNAMETYPE {
+  TYPESPEC (*INHERITEDMETHODNAME)( OBJNAME* self, TYPESPEC IDENT, ... );
+  TYPESPEC (*METHODNAME)( OBJNAME* self, TYPESPEC IDENT, ... );
   ...
-} IDENT;
+} IFNAMETYPE;
+
+static const IFNAMETYPE IFNAME = {
+  IFNAME_METHODNAME,
+  ...
+};
 
 ==
 
@@ -114,13 +144,23 @@ interface IDENT
   inherits IFNAME, ...
 
   method TYPESPEC IDENT( TYPESPEC IDENT, ... )
+  ...
 end
 
-// Change internal references
+typedef struct IFNAMETYPE {
+  TYPESPEC (INHERITEDMETHODNAME*)( OBJNAME* self, TYPESPEC IDENT, ... );
+  TYPESPEC (*METHODNAME)( OBJNAME* self, TYPESPEC IDENT, ... );
+  ...
+} IFNAMETYPE;
+
+static const IFNAMETYPE IFNAME = {
+  IFNAME_METHODNAME,
+  ...
+};
 
 ==
 
-method IFNAME.MTHDNAME( TYPESPEC IDENT, ... )
+method IFNAME.METHODNAME( TYPESPEC IDENT, ... )
   var
     TYPESPEC IDENT = CEXPR, ... = CEXPR
     ...
@@ -132,13 +172,14 @@ method IFNAME.MTHDNAME( TYPESPEC IDENT, ... )
   return EXPR
 end
 
-TYPESPEC IFNAME_MTHDNAME( TYPESPEC IDENT, TYPESPEC ..., ... ) {
+TYPESPEC IFNAME_METHODNAME( OBJNAME* self, TYPESPEC IDENT, ... ) {
   TYPESPEC IDENT = CEXPR;
   TYPESPEC ... = CEXPR;
   ...
   result = DEFAULT;
 
   STATEMENTS;
+  OBJSTATEMENTS;
   result ASSIGNOP EXPR;
   return EXPR;
 }
@@ -197,9 +238,11 @@ METHODCALL( EXPR, ..., OBJVAR );
 
 ==
 
-bind( OBJVAR, IFNAME, ... )
+bind( OBJVAR, IFNAME, IFNAME.METHODNAME, ... )
 
 memcpy( IFVAR, IFNAME, sizeof(IFNAME) );
+IFVAR.METHODNAME = IFNAME.METHODNAME;
+...
 
 ==
 
@@ -311,3 +354,8 @@ Label:
 
 ==
 
+goto LABELNAME
+
+goto LABELNAME;
+
+==

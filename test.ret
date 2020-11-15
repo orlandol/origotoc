@@ -11,9 +11,33 @@
 
 program test
 
+  type @[100] t1
+  type @[] t2
+  type @uint[100] t3
+  type @uint[] t4
+  type bool[100] t5
+  type bool t6
+  type char[100] t7
+  type char t8
+  type string[100] t9
+  type string t10
+
 run
   var
-    @[100] v1, v2, v3
-    @uint[100] v4
+    @[100] v1, v2
+    @[10] v3
+    @[] v4
+    @uint[100] v5, v6
+    @uint[10] v7
+    @uint[] v8
+    bool[100] v9, v10
+    bool[10] v11
+    bool v12
+    char[100] v13, v14
+    char[10] v15
+    char v16
+    string[100] v17,v18
+    string[10] v19
+    string v20
   end
 end

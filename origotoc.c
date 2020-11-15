@@ -96,6 +96,40 @@
 
   void BeginParse();
   void ParseProgramHeader();
+  void ParseConstDecl();
+  void ParseEnumDecl();
+  void ParseStructDecl();
+  void ParseTypeDecl();
+  void ParseGlobalVarBlock();
+  void ParseDLLImportDecl();
+  void ParseFuncDecl();
+  void ParseFuncCall();
+  void ParseMethodCall();
+  void ParseBindInterface();
+  void ParseVarRef();
+  void ParseIf();
+  void ParseThen();
+  void ParseElseIf();
+  void ParseElse();
+  void ParseEndIf();
+  void ParseFor();
+  void ParseEndFor();
+  void ParseEcho();
+  void ParseEchoLn();
+  void ParseRepeat();
+  void ParseWhen();
+  void ParseWhile();
+  void ParseEndWhile();
+  void ParseLabelDecl();
+  void ParseLocalVarBlock();
+  void ParseGoto();
+  void ParseStatement();
+  void ParseFunc();
+  void ParseObjectDecl();
+  void ParseAbstractDecl();
+  void ParseInterfaceDecl();
+  void ParseMethod();
+  void ParseOperatorFunc();
   void ParseRun();
   void ParseEndRun();
   void ParseTopLevel();
@@ -1073,6 +1107,122 @@ printf( "ParseProgramHeader()\n" );
     GetToken(); // Skip PROGRAMNAME
   }
 
+  void ParseConstDecl() {
+printf( "ParseConstDecl()\n" );
+  }
+
+  void ParseEnumDecl() {
+printf( "ParseEnumDecl()\n" );
+  }
+
+  void ParseStructDecl() {
+printf( "ParseStructDecl()\n" );
+  }
+
+  void ParseTypeDecl() {
+    TypeSpec typeDeclSpec = {};
+    unsigned keywordToken;
+
+printf( "ParseTypeDecl()\n" );
+    GetToken(); // Skip keyword type
+
+    if( ReadTypeSpec(&typeDeclSpec) == 0 ) {
+      printf( "[L%u,C%u] Error in type specification\n", curLine, curColumn );
+      exit( errorInTypeSpecification );
+    }
+
+    keywordToken = FindKeyword(curTokenStr);
+    if( (curToken != tkIdent) || keywordToken ) {
+      printf( "[L%u,C%u] Expected undeclared identifier\n", curLine, curColumn );
+      exit( expectedUndeclaredIdentifier );
+    }
+    GetToken(); // Skip identifier
+  }
+
+  void ParseGlobalVarBlock() {
+printf( "ParseGlobalVarBlock()\n" );
+  }
+
+  void ParseDLLImportDecl() {
+printf( "ParseDLLImportDecl()\n" );
+  }
+
+  void ParseFuncDecl() {
+printf( "ParseFuncDecl()\n" );
+  }
+
+  void ParseFuncCall() {
+printf( "ParseFuncCall()\n" );
+  }
+
+  void ParseMethodCall() {
+printf( "ParseMethodCall()\n" );
+  }
+
+  void ParseBindInterface() {
+printf( "ParseBindInterface()\n" );
+  }
+
+  void ParseVarRef() {
+printf( "ParseVarRef()\n" );
+  }
+
+  void ParseIf() {
+printf( "ParseIf()\n" );
+  }
+
+  void ParseThen() {
+printf( "ParseThen()\n" );
+  }
+
+  void ParseElseIf() {
+printf( "ParseElseIf()\n" );
+  }
+
+  void ParseElse() {
+printf( "ParseElse()\n" );
+  }
+
+  void ParseEndIf() {
+printf( "ParseEndIf()\n" );
+  }
+
+  void ParseFor() {
+printf( "ParseFor()\n" );
+  }
+
+  void ParseEndFor() {
+printf( "ParseEndFor()\n" );
+  }
+
+  void ParseEcho() {
+printf( "ParseEcho()\n" );
+  }
+
+  void ParseEchoLn() {
+printf( "ParseEchoLn()\n" );
+  }
+
+  void ParseRepeat() {
+printf( "ParseRepeat()\n" );
+  }
+
+  void ParseWhen() {
+printf( "ParseWhen()\n" );
+  }
+
+  void ParseWhile() {
+printf( "ParseWhile()\n" );
+  }
+
+  void ParseEndWhile() {
+printf( "ParseEndWhile()\n" );
+  }
+
+  void ParseLabelDecl() {
+printf( "ParseLabelDecl()\n" );
+  }
+
   void ParseLocalVarBlock() {
     TypeSpec varTypeSpec;
     unsigned keywordToken;
@@ -1117,6 +1267,38 @@ printf( "ParseLocalVarBlock()\n" );
         return;
       }
     }
+  }
+
+  void ParseGoto() {
+printf( "ParseGoto()\n" );
+  }
+
+  void ParseStatement() {
+printf( "ParseStatement()\n" );
+  }
+
+  void ParseFunc() {
+printf( "ParseFunc()\n" );
+  }
+
+  void ParseObjectDecl() {
+printf( "ParseObjectDecl()\n" );
+  }
+
+  void ParseAbstractDecl() {
+printf( "ParseAbstractDecl()\n" );
+  }
+
+  void ParseInterfaceDecl() {
+printf( "ParseInterfaceDecl()\n" );
+  }
+
+  void ParseMethod() {
+printf( "ParseMethod()\n" );
+  }
+
+  void ParseOperatorFunc() {
+printf( "ParseOperatorFunc()\n" );
   }
 
   void ParseRun() {
@@ -1187,6 +1369,11 @@ printf( "ParseTopLevel()\n" );
     do {
 printf( "ParseTopLevel() main loop\n" );
       keywordToken = FindKeyword(curTokenStr);
+
+      if( keywordToken == rsvdType ) {
+        ParseTypeDecl();
+        continue;
+      }
 
       if( keywordToken == rsvdRun ) {
         ParseRun();
