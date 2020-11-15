@@ -29,6 +29,8 @@
     expectedEndOrStatement = 18,
     errorRetFileNotOpen = 19,
     expectedLocalVarDecl = 20,
+    errorBuildingIntermediateSource = 21,
+    errorInTypeSpecification = 22,
   } ErrorCodes;
 
   typedef struct TokenVal {
@@ -63,8 +65,6 @@
   void Cleanup();
 
   void ParseOptions( int argc, char* argv[] );
-
-  unsigned FindKeyword( char* identifier );
 
   FILE* OpenRet( char* inRetName );
   void CloseRet( FILE** fileRet );
@@ -543,10 +543,12 @@
       }
     }
 
+printf( "ReadChar(): curCh == %c; nextCh == %c\n", curCh == '\r' ? ' ' : curCh == '\n' ? ' ' : curCh, nextCh == '\r' ? ' ' : nextCh == '\n' ? ' ' : nextCh );
     return curCh;
   }
 
   void SkipSpace() {
+printf( "SkipSpace()\n" );
     while( isspace(curCh) ) {
       ReadChar();
     }
@@ -556,6 +558,7 @@
     unsigned commentLevel;
     unsigned loopFlags;
 
+printf( "SkipSpaceAndComments()\n" );
     do {
       loopFlags = 0;
 
@@ -619,6 +622,7 @@
 
   int ReadIdent( char* destIdent, size_t destMaxLen ) {
     size_t destIndex = 0;
+printf( "ReadIdent()\n" );
 
     if( !(retFile && destIdent && destMaxLen) ) {
       return 0;
@@ -642,6 +646,7 @@
   int ReadBinNum( unsigned* destNum ) {
     unsigned result = 0;
 
+printf( "ReadBinNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -674,6 +679,7 @@
   int ReadOctalNum( unsigned* destNum ) {
     unsigned result = 0;
 
+printf( "ReadOctalNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -707,6 +713,7 @@
   int ReadHexNum( unsigned* destNum ) {
     unsigned result = 0;
 
+printf( "ReadHexNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -744,6 +751,7 @@
   int ReadNum( unsigned* destNum ) {
     unsigned result = 0;
 
+printf( "ReadNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -782,6 +790,7 @@
     size_t destIndex = 0;
     char quoteCh;
 
+printf( "ReadString()\n" );
     if( !(retFile && destString && destMaxLen) ) {
       return 0;
     }
@@ -817,11 +826,12 @@
     int    compareCode;
     unsigned token = 0;
 
+printf( "ReadOperator()\n" );
     if( !(retFile && ispunct(curCh)) ) {
       return 0;
     }
 
-    while( ispunct(curCh) ) {
+    do {
       if( operLength > 7 ) {
         break;
       }
@@ -836,6 +846,9 @@
         compareCode = strcmp(operTable[operIndex].text, operator);
         if( compareCode == 0 ) {
           token = operTable[operIndex].token;
+          if( ReadChar() == 0 ) {
+            return token;
+          }
           break;
         }
 
@@ -851,11 +864,7 @@
       if( leftIndex > rightIndex ) {
         return token;
       }
-
-      if( ReadChar() == 0 ) {
-        return token;
-      }
-    }
+    } while( ispunct(curCh) && (compareCode == 0) );
 
     return token;
   }
@@ -873,6 +882,7 @@
     memset( nextTokenStr, 0, sizeof(nextTokenStr) );
     memset( &nextTokenVal, 0, sizeof(nextTokenVal) );
 
+printf( "GetToken()\n" );
     // Prepare to read next token
     SkipSpaceAndComments();
 
@@ -880,6 +890,13 @@
     nextColumn = column;
 
     // Determine next token type, then read it
+    if( (curCh == '_') || isalpha(curCh) ) {
+      if( ReadIdent(nextTokenStr, sizeof(nextTokenStr)) ) {
+        nextToken = tkIdent;
+      }
+      return curToken;
+    }
+
     if( isdigit(curCh) ) {
       if( ReadNum(&nextTokenVal.valUint) ) {
         nextTokenVal.valType = valUint;
@@ -888,11 +905,8 @@
       return curToken;
     }
 
-    if( (curCh == '_') || isalnum(curCh) ) {
-      if( ReadIdent(nextTokenStr, sizeof(nextTokenStr)) ) {
-        nextToken = tkIdent;
-      }
-      return curToken;
+    if( ispunct(curCh) ) {
+      nextToken = ReadOperator();
     }
 
     if( (curCh == '"') || (curCh == '\'') ) {
@@ -901,10 +915,6 @@
         nextToken = valString;
       }
       return curToken;
-    }
-
-    if( ispunct(curCh) ) {
-      nextToken = ReadOperator();
     }
 
     return curToken;
@@ -916,6 +926,7 @@
     size_t keywordIndex = keywordCount / 2;
     int    compareCode = 0;
 
+printf( "FindKeyword()\n" );
     if( !(identifier && (*identifier)) ) {
       return 0;
     }
@@ -943,16 +954,17 @@
     unsigned reservedToken;
 
 printf( "ReadTypeSpec()\n" );
-
     if( !(retFile && destSpec) ) {
       return 0;
     }
 
+    // Set pointer type if specified
     if( (curToken == ptrData) || (curToken == ptrRef) ) {
       tempSpec.ptrType = curToken;
       GetToken(); // Skip # or *
     }
 
+    // Set base type if specified
     reservedToken = FindKeyword(curTokenStr);
     if( (reservedToken >= firstType) && (reservedToken <= lastType) ) {
       if( (reservedToken == ptrData) || (reservedToken == ptrRef) ) {
@@ -963,6 +975,12 @@ printf( "ReadTypeSpec()\n" );
       GetToken(); // Skip base type
     }
 
+    // Pointer type and/or base type are required
+    if( (tempSpec.ptrType | tempSpec.baseType) == 0 ) {
+      return 0;
+    }
+
+    // Process array dimension
     if( curToken == tkLBrace ) {
       GetToken(); // Skip opening array bracket [
 
@@ -973,6 +991,7 @@ printf( "ReadTypeSpec()\n" );
         break;
 
       case tkRBrace:
+        // Array dimension required for non-pointers
         if( tempSpec.ptrType == 0 ) {
           return 0;
         }
@@ -1015,7 +1034,19 @@ printf( "BeginParse()\n" );
 
     // Initialize Header file
     if( headerFile ) {
+      // Write include guard begin
       fprintf( headerFile, "#ifndef %s_H\n#define %s_H\n", baseName, baseName );
+
+      // Generate built-in type declarations for unsigned integers
+      fprintf( headerFile, "\n  typedef unsigned uint;\n" );
+      fprintf( headerFile, "  typedef unsigned char uint8;\n" );
+      fprintf( headerFile, "  typedef unsigned short uint16;\n" );
+      fprintf( headerFile, "  typedef unsigned long uint32;\n" );
+
+      // Generate built-in type declarations for signed integers
+      fprintf( headerFile, "\n  typedef signed char int8;\n" );
+      fprintf( headerFile, "  typedef signed short int16;\n" );
+      fprintf( headerFile, "  typedef signed long int32;\n" );
     } else {
       printf( "Header file not open\n" );
       exit( errorHeaderFileNotOpen );
@@ -1044,7 +1075,7 @@ printf( "ParseProgramHeader()\n" );
 
   void ParseLocalVarBlock() {
     TypeSpec varTypeSpec;
-    unsigned rsvdToken;
+    unsigned keywordToken;
 
 printf( "ParseLocalVarBlock()\n" );
     if( retFile == NULL ) {
@@ -1055,17 +1086,36 @@ printf( "ParseLocalVarBlock()\n" );
     GetToken(); // Skip keyword var
 
     while( curToken ) {
-      ReadTypeSpec( &varTypeSpec );
-      GetToken(); // Skip ident
+      // Get type specification
+      if( ReadTypeSpec(&varTypeSpec) == 0 ) {
+        printf( "[L%u,C%u] Error in type specification\n", curLine, curColumn );
+        exit( errorInTypeSpecification );
+      }
 
-      rsvdToken = FindKeyword(curTokenStr);
-      if( rsvdToken == rsvdEnd ) {
+      // Declare local variables
+      do {
+        keywordToken = FindKeyword(curTokenStr);
+        if( (curToken != tkIdent) || keywordToken ) {
+          printf( "[L%u,C%u] Expected undeclared identifier\n", curLine, curColumn );
+          exit( expectedUndeclaredIdentifier );
+        }
+
+        printf( "Declare local variable %s\n", curTokenStr );
+
+        GetToken(); // Skip ident
+
+        if( curToken != tkComma ) {
+          break;
+        }
+        GetToken(); // Skip comma (,)
+      } while( curToken && (curToken == tkIdent) );
+
+      // Check for keyword end
+      keywordToken = FindKeyword(curTokenStr);
+      if( keywordToken == rsvdEnd ) {
         GetToken(); // Skip keyword end
         return;
       }
-
-      printf( "[L%u,C%u] Expected local variable declaration or end\n", curLine, curColumn );
-      exit( expectedLocalVarDecl );
     }
   }
 
@@ -1080,6 +1130,7 @@ printf( "ParseRun() entered\n" );
     runDeclared = -1;
     GetToken(); // Skip run
 
+printf( "ParseRun()\n" );
     if( cFile ) {
       fprintf( cFile, "\nint main( int argc, char* argv[] ) {\n" );
     } else {
@@ -1161,12 +1212,13 @@ printf( "EndParse()\n" );
       exit( expectedRun );
     }
 
-    // Finalize Header file
+    // Write include guard end
     fprintf( headerFile, "\n#endif %s_H\n", baseName );
   }
 
 int main( int argc, char* argv[] ) {
-  char ch;
+  char commandLine[4096] = {};
+  int result;
 
   // Initialize program
   atexit( Cleanup );
@@ -1210,7 +1262,14 @@ int main( int argc, char* argv[] ) {
 
   // Build executable from C intermediate files
   printf( "\nBuilding %s from %s...\n", exeName, headerName );
-  printf( "\n" );
+  snprintf( commandLine, sizeof(commandLine) - 1,
+    ".\\tcc\\tcc.exe -xc %s -o %s", cName, exeName );
+  result = RunProgram( commandLine );
+  if( result ) {
+    printf( "Error building intermediate source %s\n", cName );
+    exit( errorBuildingIntermediateSource );
+  }
+  printf( "Done.\n" );
 
   // Release program resources
   Cleanup();
