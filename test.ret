@@ -22,6 +22,11 @@ program test
   type string[100] t9
   type string t10
 
+  type uint UINT
+
+  import ExitProcess( UINT exitCode )
+    from "kernel32.dll"
+
 run
   var
     @[100] v1, v2

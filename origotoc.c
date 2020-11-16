@@ -18,7 +18,7 @@
     errorCreatingCFile = 7,
     errorCreatingHeaderFile = 8,
     errorReadingIdentifier = 9,
-    expectedKeywordProgram = 10,
+    expectedKeyword = 10,
     expectedUndeclaredIdentifier = 11,
     expectedRun = 12,
     expectedRunOrTopLevel = 13,
@@ -31,17 +31,11 @@
     expectedLocalVarDecl = 20,
     errorBuildingIntermediateSource = 21,
     errorInTypeSpecification = 22,
+    errorPendingImplementation = 23,
+    errorExpectedLeftParenthesis = 24,
+    errorExpectedRightParenthesis = 25,
+    expectedSymbol = 26,
   } ErrorCodes;
-
-  typedef struct TokenVal {
-    unsigned valType;
-
-    union {
-      unsigned valUint;
-      int valInt;
-      char valChar;
-    };
-  } TokenVal;
 
   typedef struct Keyword {
     char*    name;
@@ -56,9 +50,19 @@
   typedef struct TypeSpec {
     unsigned ptrType;
     unsigned baseType;
-    size_t indexCount;
     char baseName[1024];
+    size_t indexCount;
   } TypeSpec;
+
+  typedef struct TokenVal {
+    unsigned valType;
+
+    union {
+      unsigned valUint;
+      int valInt;
+      char valChar;
+    };
+  } TokenVal;
 
   int RunProgram( char* commandLine );
 
@@ -99,9 +103,10 @@
   void ParseConstDecl();
   void ParseEnumDecl();
   void ParseStructDecl();
+  void ParseUnionDecl();
   void ParseTypeDecl();
   void ParseGlobalVarBlock();
-  void ParseDLLImportDecl();
+  void ParseImportDecl();
   void ParseFuncDecl();
   void ParseFuncCall();
   void ParseMethodCall();
@@ -112,6 +117,8 @@
   void ParseElseIf();
   void ParseElse();
   void ParseEndIf();
+  void ParseForIn();
+  void ParseForToDownTo();
   void ParseFor();
   void ParseEndFor();
   void ParseEcho();
@@ -123,6 +130,7 @@
   void ParseLabelDecl();
   void ParseLocalVarBlock();
   void ParseGoto();
+  void ParseExit();
   void ParseStatement();
   void ParseFunc();
   void ParseObjectDecl();
@@ -171,36 +179,48 @@
     rsvdIdent = (1 << 9),
       rsvdProgram,
         firstRsvd = rsvdProgram,
+      rsvdConst,
       rsvdEnum,
       rsvdType,
-      rsvdStruct,
-      rsvdObject,
-      rsvdImport,
-      rsvdPublic,
-      rsvdMutable,
-      rsvdExtends,
-      rsvdImplements,
-      rsvdMethod,
-      rsvdSelf,
-      rsvdFunc,
-      rsvdAsm,
-      rsvdNoRet,
-      rsvdNoFrame,
-      rsvdReturn,
       rsvdVar,
+      rsvdFrom,
+      rsvdImport,
+      rsvdFuncDecl,
+      rsvdResult,
+      rsvdReturn,
+      rsvdFunc,
+      rsvdObject,
+      rsvdInherits,
+      rsvdMutable,
+      rsvdImmutable,
+      rsvdAbstract,
+      rsvdImplements,
+      rsvdInterface,
+      rsvdSelf,
+      rsvdMethod,
+      rsvdOperator,
       rsvdRun,
       rsvdEnd,
+      rsvdBind,
       rsvdIf,
       rsvdThen,
-      rsvdThenIf,
       rsvdElseIf,
       rsvdElse,
       rsvdEndIf,
-      rsvdWhile,
-      rsvdNext,
-      rsvdStop,
-      rsvdEndWhile,
       rsvdIn,
+      rsvdTo,
+      rsvdDownTo,
+      rsvdNext,
+      rsvdBreak,
+      rsvdFor,
+      rsvdEndFor,
+      rsvdRepeat,
+      rsvdWhen,
+      rsvdWhile,
+      rsvdEndWhile,
+      rsvdEcho,
+      rsvdEchoLn,
+      rsvdGoto,
       rsvdExit,
         lastRsvd = rsvdExit,
 
@@ -220,17 +240,41 @@
       typeBool,
       typeStruct,
       typeUnion,
-        lastType = typeUnion,
+      typeFunc,
+      typeObject,
+      typeMethod,
+        lastType = typeMethod,
+
+    // Variable tokens
+    varDecl = (3 << 9),
+      varInt,
+        firstVar = varInt,
+      varInt8,
+      varInt16,
+      varInt32,
+      varUint,
+      varUint8,
+      varUint16,
+      varUint32,
+      varChar,
+      varString,
+      varBool,
+      varStruct,
+      varUnion,
+      varFunc,
+      varObject,
+      varMethod,
+        lastVar = varMethod,
 
     // Pointer tokens
-    ptrDecl = (3 << 9),
+    ptrDecl = (4 << 9),
       ptrData,
         firstPtr = ptrData,
       ptrRef,
         lastPtr = ptrRef,
 
     // Literal value tokens
-    valImmediate = (4 << 9),
+    valImmediate = (5 << 9),
       valInt = (valImmediate + (0 << 5)),
           firstValInt = valInt,
         valInt8,
@@ -258,7 +302,7 @@
           lastValBool = valBool,
 
     // Operator tokens
-    operSymbol = (5 << 9),
+    operSymbol = (6 << 9),
       operPrec00 = (operSymbol + (0 << 5)),
       operPrec01 = (operSymbol + (1 << 5)),
         opPostInc,
@@ -307,8 +351,9 @@
       operPrec15 = (operSymbol + (15 << 5)),
 
     // Assignment operators
-    assignSymbol  = (6 << 9),
+    assignSymbol  = (7 << 9),
       assignTo,
+        firstAssign = assignTo,
       assignNot,
       assignAdd,
       assignSub,
@@ -324,27 +369,68 @@
       assignSRor,
       assignAnd,
       assignXor,
-      assignOr
+      assignOr,
+        lastAssign = assignOr
   } Token;
 
   const Keyword keywordTable[] = {
+    "abstract", rsvdAbstract,
+    "bind",    rsvdBind,
     "bool",    typeBool,
+    "break",   rsvdBreak,
     "char",    typeChar,
+    "const",   rsvdConst,
+    "downto",  rsvdDownTo,
+    "echo",    rsvdEcho,
+    "echoln",  rsvdEchoLn,
+    "else",    rsvdElse,
+    "elseif",  rsvdElseIf,
     "end",     rsvdEnd,
+    "endfor",  rsvdEndFor,
+    "endif",   rsvdEndIf,
+    "endwhile", rsvdEndWhile,
+    "enum",    rsvdEnum,
+    "exit",    rsvdExit,
+    "for",     rsvdFor,
+    "from",    rsvdFrom,
+    "func",    rsvdFunc,
+    "funcdecl", rsvdFuncDecl,
+    "goto",    rsvdGoto,
+    "if",      rsvdIf,
+    "immutable", rsvdImmutable,
+    "implements", rsvdImplements,
     "import",  rsvdImport,
+    "in",      rsvdIn,
+    "inherits", rsvdInherits,
     "int",     typeInt,
     "int16",   typeInt16,
     "int32",   typeInt32,
     "int8",    typeInt8,
+    "interface", rsvdInterface,
+    "method",  rsvdMethod,
+    "mutable", rsvdMutable,
+    "next",    rsvdNext,
+    "object",  rsvdObject,
+    "operator", rsvdOperator,
     "program", rsvdProgram,
+    "repeat",  rsvdRepeat,
+    "result",  rsvdResult,
+    "return",  rsvdReturn,
     "run",     rsvdRun,
+    "self",    rsvdSelf,
     "string",  typeString,
+    "struct",  typeStruct,
+    "then",    rsvdThen,
+    "to",      rsvdTo,
     "type",    rsvdType,
     "uint",    typeUint,
     "uint16",  typeUint16,
     "uint32",  typeUint32,
     "uint8",   typeUint8,
-    "var",     rsvdVar
+    "union",   typeUnion,
+    "var",     rsvdVar,
+    "when",    rsvdWhen,
+    "while",   rsvdWhile
   };
   const size_t keywordCount = sizeof(keywordTable) / sizeof(keywordTable[0]);
 
@@ -577,7 +663,7 @@
       }
     }
 
-printf( "ReadChar(): curCh == %c; nextCh == %c\n", curCh == '\r' ? ' ' : curCh == '\n' ? ' ' : curCh, nextCh == '\r' ? ' ' : nextCh == '\n' ? ' ' : nextCh );
+//printf( "ReadChar(): curCh == %c; nextCh == %c\n", curCh == '\r' ? ' ' : curCh == '\n' ? ' ' : curCh, nextCh == '\r' ? ' ' : nextCh == '\n' ? ' ' : nextCh );
     return curCh;
   }
 
@@ -656,8 +742,8 @@ printf( "SkipSpaceAndComments()\n" );
 
   int ReadIdent( char* destIdent, size_t destMaxLen ) {
     size_t destIndex = 0;
-printf( "ReadIdent()\n" );
 
+printf( "ReadIdent()\n" );
     if( !(retFile && destIdent && destMaxLen) ) {
       return 0;
     }
@@ -866,7 +952,7 @@ printf( "ReadOperator()\n" );
     }
 
     do {
-      if( operLength > 7 ) {
+      if( operLength > 5 ) {
         break;
       }
 
@@ -985,7 +1071,7 @@ printf( "FindKeyword()\n" );
 
   int ReadTypeSpec( TypeSpec* destSpec ) {
     TypeSpec tempSpec = {};
-    unsigned reservedToken;
+    unsigned keywordToken;
 
 printf( "ReadTypeSpec()\n" );
     if( !(retFile && destSpec) ) {
@@ -999,20 +1085,21 @@ printf( "ReadTypeSpec()\n" );
     }
 
     // Set base type if specified
-    reservedToken = FindKeyword(curTokenStr);
-    if( (reservedToken >= firstType) && (reservedToken <= lastType) ) {
-      if( (reservedToken == ptrData) || (reservedToken == ptrRef) ) {
+    keywordToken = FindKeyword(curTokenStr);
+    if( (keywordToken >= firstType) && (keywordToken <= lastType) ) {
+      if( (keywordToken == ptrData) || (keywordToken == ptrRef) ) {
         return 0; // Double pointers or references not directly supported
       }
       tempSpec.baseType = curToken;
       memcpy( tempSpec.baseName, curTokenStr, sizeof(curTokenStr) );
       GetToken(); // Skip base type
     }
-
+if( curToken != tkIdent ) { // Temporary line until token table is implemented
     // Pointer type and/or base type are required
     if( (tempSpec.ptrType | tempSpec.baseType) == 0 ) {
       return 0;
     }
+} // Temporary line until token table is implemented
 
     // Process array dimension
     if( curToken == tkLBrace ) {
@@ -1087,6 +1174,9 @@ printf( "BeginParse()\n" );
     }
   }
 
+  /*
+   *  program IDENT
+   */
   void ParseProgramHeader() {
     unsigned programToken;
 printf( "ParseProgramHeader()\n" );
@@ -1095,7 +1185,7 @@ printf( "ParseProgramHeader()\n" );
     programToken = FindKeyword(curTokenStr);
     if( programToken != rsvdProgram ) {
       printf( "[L%u,C%u] Expected keyword program\n", curLine, curColumn );
-      exit( expectedKeywordProgram );
+      exit( expectedKeyword );
     }
     GetToken(); // Skip program
 
@@ -1107,18 +1197,63 @@ printf( "ParseProgramHeader()\n" );
     GetToken(); // Skip PROGRAMNAME
   }
 
+  /*
+   *  const TYPESPEC IDENT = CEXPR
+   */
   void ParseConstDecl() {
 printf( "ParseConstDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  enum BASETYPE IDENT
+   *    IDENT, ... = CEXPR
+   *    ...
+   *  end
+   */
   void ParseEnumDecl() {
 printf( "ParseEnumDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  struct IDENT
+   *    TYPESPEC IDENT, ...
+   *    union (TYPESPEC, ...) IDENT, ...
+   *    ...
+   *  end
+   */
   void ParseStructDecl() {
 printf( "ParseStructDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  union IDENT
+   *    TYPESPEC IDENT, ...
+   *    struct
+   *      TYPESPEC IDENT, ...
+   *      ...
+   *    end
+   *    ...
+   *  end
+   */
+  void ParseUnionDecl() {
+printf( "ParseUnionDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
+  }
+
+  /*
+   *  type TYPESPEC IDENT
+   */
   void ParseTypeDecl() {
     TypeSpec typeDeclSpec = {};
     unsigned keywordToken;
@@ -1139,90 +1274,287 @@ printf( "ParseTypeDecl()\n" );
     GetToken(); // Skip identifier
   }
 
+  /*
+   *  var
+   *    TYPESPEC IDENT, ... = CEXPR
+   *    ...
+   *  end
+   */
   void ParseGlobalVarBlock() {
 printf( "ParseGlobalVarBlock()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
-  void ParseDLLImportDecl() {
-printf( "ParseDLLImportDecl()\n" );
+  /*
+   *  import TYPESPEC IDENT( TYPESPEC IDENT, ... )
+   */
+  void ParseImportDecl() {
+    TypeSpec typeSpec;
+    unsigned keywordToken;
+
+    GetToken(); // Skip keyword import
+
+printf( "ParseImportDecl()\n" );
+    GetToken(); // Skip ident
+
+    if( curToken != tkLParen ) {
+      printf( "[L%u,C%u] Expected left parenthesis\n", curLine, curColumn );
+      exit( errorExpectedLeftParenthesis );
+    }
+    GetToken(); // Skip left parenthesis (
+
+    do {
+      memset( &typeSpec, 0, sizeof(typeSpec) );
+      if( ReadTypeSpec(&typeSpec) == 0 ) {
+        printf( "[L%u,C%u] Error in type specification\n", curLine, curColumn );
+        exit( errorInTypeSpecification );
+      }
+
+      do {
+        GetToken(); // Skip ident
+        if( curToken != tkComma ) {
+          break;
+        }
+        GetToken(); // Skip comma (,)
+      } while( curToken && (curToken == tkIdent) );
+    } while( curToken && (curToken != tkRParen) );
+    GetToken(); // Skip right parenthesis }
+
+    keywordToken = FindKeyword(curTokenStr);
+    if( keywordToken != rsvdFrom ) {
+      printf( "[L%u,C%u] Expected keyword from\n", curLine, curColumn );
+      exit( expectedKeyword );
+    }
+    GetToken(); // Skip keyword from
+
+    GetToken(); // Skip DLL file name string
   }
 
+  /*
+   *  funcdecl TYPESPEC IDENT( TYPESPEC IDENT, ... )
+   */
   void ParseFuncDecl() {
 printf( "ParseFuncDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  FUNCCALL( EXPR, ... )
+   */
   void ParseFuncCall() {
 printf( "ParseFuncCall()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  METHODCALL( EXPR, ... )
+   */
   void ParseMethodCall() {
 printf( "ParseMethodCall()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  bind( OBJVAR, IFNAME, IFNAME.METHODNAME, ... )
+   */
   void ParseBindInterface() {
 printf( "ParseBindInterface()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  VARREF ASSIGNOP EXPR
+   */
   void ParseVarRef() {
 printf( "ParseVarRef()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  if CONDITION
+   */
   void ParseIf() {
 printf( "ParseIf()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  then STATEMENT
+   */
   void ParseThen() {
 printf( "ParseThen()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  elseif CONDITION
+   */
   void ParseElseIf() {
 printf( "ParseElseIf()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  else // Last elseXYZ section before endif
+   */
   void ParseElse() {
 printf( "ParseElse()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  endif
+   */
   void ParseEndIf() {
 printf( "ParseEndIf()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  for VARREF in [CEXPR, ...]
+   */
+  void ParseForIn() {
+printf( "ParseForIn()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
+  }
+
+  /*
+   *  for VARREF = EXPR to EXPR
+   *  for VARREF = EXPR downto EXPR
+   */
+  void ParseForToDownTo() {
+printf( "ParseForToDownTo()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
+  }
+
+  /*
+   *  for VARREF in [CEXPR, ...]
+   *  for VARREF = EXPR to EXPR
+   *  for VARREF = EXPR downto EXPR
+   */
   void ParseFor() {
 printf( "ParseFor()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  endfor
+   */
   void ParseEndFor() {
 printf( "ParseEndFor()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  echo( EXPR, ... )
+   */
   void ParseEcho() {
 printf( "ParseEcho()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  echo( EXPR, ... )
+   */
   void ParseEchoLn() {
 printf( "ParseEchoLn()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  repeat
+   */
   void ParseRepeat() {
 printf( "ParseRepeat()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  when CONDITION
+   */
   void ParseWhen() {
 printf( "ParseWhen()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  while CONDITION
+   */
   void ParseWhile() {
 printf( "ParseWhile()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  endwhile
+   */
   void ParseEndWhile() {
 printf( "ParseEndWhile()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  IDENT:
+   */
   void ParseLabelDecl() {
 printf( "ParseLabelDecl()\n" );
+    GetToken(); // Skip label identifier
+
+    if( curToken != tkColon ) {
+      printf( "[L%u,C%u] Expected colon\n" );
+      exit( expectedSymbol );
+    }
+    GetToken(); // Skip colon (:)
   }
 
+  /*
+   *  var
+   *    TYPESPEC IDENT, ... = CEXPR
+   *    ...
+   *  end
+   */
   void ParseLocalVarBlock() {
     TypeSpec varTypeSpec;
     unsigned keywordToken;
@@ -1250,8 +1582,6 @@ printf( "ParseLocalVarBlock()\n" );
           exit( expectedUndeclaredIdentifier );
         }
 
-        printf( "Declare local variable %s\n", curTokenStr );
-
         GetToken(); // Skip ident
 
         if( curToken != tkComma ) {
@@ -1269,40 +1599,155 @@ printf( "ParseLocalVarBlock()\n" );
     }
   }
 
+  /*
+   *  goto LABEL
+   */
   void ParseGoto() {
 printf( "ParseGoto()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  exit( EXPR )
+   */
+  void ParseExit() {
+printf( "ParseExit()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
+  }
+
+  /*
+   *  FUNCCALL, METHODCALL, bind, VAREXPR, if/then, if...endif, for...endfor,
+   *  repeat...when, while...endwhile, echo, echoln, LABELDECL, goto, exit
+   */
   void ParseStatement() {
 printf( "ParseStatement()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  func TYPESPEC IDENT( TYPESPEC IDENT, ... )
+   *    var
+   *      TYPESPEC IDENT, ... = CEXPR
+   *      ...
+   *    end
+   *
+   *    STATEMENTS
+   *    result ASSIGNOP EXPR
+   *    return
+   *    ...
+   *  end
+   */
   void ParseFunc() {
 printf( "ParseFunc()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  object IDENT
+   *    inherits OBJNAME, ...
+   *  mutable
+   *  immutable // Default
+   *    TYPESPEC MEMBERIDENT, ...
+   *    ...
+   *  end
+   */
   void ParseObjectDecl() {
 printf( "ParseObjectDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  abstract IDENT
+   *    implements OBJNAME
+   *    inherits IFNAME, ...
+   *
+   *    method METHODNAME( TYPESPEC IDENT, ... )
+   *    ...
+   *  end
+   */
   void ParseAbstractDecl() {
 printf( "ParseAbstractDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  interface IDENT
+   *    implements OBJNAME
+   *    inherits IFNAME, ...
+   *
+   *    method METHODNAME( TYPESPEC IDENT, ... )
+   *    ...
+   *  end
+   */
   void ParseInterfaceDecl() {
 printf( "ParseInterfaceDecl()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  method IFNAME.METHODNAME( TYPESPEC IDENT, ... )
+   *    var
+   *      TYPESPEC IDENT = CEXPR, ... = CEXPR
+   *      ...
+   *    end
+   *
+   *    STATEMENTS
+   *    OBJSTATEMENTS
+   *    result ASSIGNOP EXPR
+   *    return EXPR
+   *  end
+   */
   void ParseMethod() {
 printf( "ParseMethod()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  operator TYPESPEC OPER( TYPESPEC VALUE, ... )
+   *    var
+   *      TYPESPEC IDENT, ... = CEXPR
+   *      ...
+   *    end
+   *
+   *    STATEMENTS
+   *    result ASSIGNOP EXPR
+   *    return EXPR
+   *  end
+   */
   void ParseOperatorFunc() {
 printf( "ParseOperatorFunc()\n" );
+
+    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+    exit( errorPendingImplementation );
   }
 
+  /*
+   *  run
+   *    var
+   *      TYPESPEC IDENT, ... = CEXPR
+   *    end
+   *
+   *    STATEMENTS
+   *  end
+   */
   void ParseRun() {
-    unsigned reservedToken;
+    unsigned keywordToken;
 
 printf( "ParseRun() entered\n" );
     if( runDeclared ) {
@@ -1321,17 +1766,17 @@ printf( "ParseRun()\n" );
     }
 
     // Parse local variable declaration block
-    reservedToken = FindKeyword(curTokenStr);
-    if( reservedToken == rsvdVar ) {
+    keywordToken = FindKeyword(curTokenStr);
+    if( keywordToken == rsvdVar ) {
       ParseLocalVarBlock();
     }
 
     // Parse run block statements until end of run block
     do {
 printf( "ParseRun() main loop\n" );
-      reservedToken = FindKeyword(curTokenStr);
-      if( (reservedToken >= firstRsvd) && (reservedToken <= lastRsvd) ) {
-        switch( reservedToken ) {
+      keywordToken = FindKeyword(curTokenStr);
+      if( (keywordToken >= firstRsvd) && (keywordToken <= lastRsvd) ) {
+        switch( keywordToken ) {
         case rsvdEnd:
           ParseEndRun();
           return;
@@ -1348,6 +1793,9 @@ printf( "ParseRun() main loop\n" );
     } while( curToken );
   }
 
+  /*
+   *  end
+   */
   void ParseEndRun() {
 printf( "ParseEndRun()\n" );
     GetToken(); // Skip end
@@ -1360,6 +1808,10 @@ printf( "ParseEndRun()\n" );
     }
   }
 
+  /*
+   *  const, enum, struct, union, type, var, import, funcdecl, func,
+   *  object, abstract, interface, method, operator, run
+   */
   void ParseTopLevel() {
     char* topLevelExitStr = "Expected run, or top level keyword";
     unsigned topLevelExitCode = expectedRunOrTopLevel;
@@ -1370,8 +1822,73 @@ printf( "ParseTopLevel()\n" );
 printf( "ParseTopLevel() main loop\n" );
       keywordToken = FindKeyword(curTokenStr);
 
+      if( keywordToken == rsvdConst ) {
+        ParseConstDecl();
+        continue;
+      }
+
+      if( keywordToken == rsvdEnum ) {
+        ParseEnumDecl();
+        continue;
+      }
+
+      if( keywordToken == typeStruct ) {
+        ParseStructDecl();
+        continue;
+      }
+
+      if( keywordToken == typeUnion ) {
+        ParseUnionDecl();
+        continue;
+      }
+
       if( keywordToken == rsvdType ) {
         ParseTypeDecl();
+        continue;
+      }
+
+      if( keywordToken == rsvdVar ) {
+        ParseGlobalVarBlock();
+        continue;
+      }
+
+      if( keywordToken == rsvdImport ) {
+        ParseImportDecl();
+        continue;
+      }
+
+      if( keywordToken == rsvdFuncDecl ) {
+        ParseFuncDecl();
+        continue;
+      }
+
+      if( keywordToken == rsvdFunc ) {
+        ParseFunc();
+        continue;
+      }
+
+      if( keywordToken == rsvdObject ) {
+        ParseObjectDecl();
+        continue;
+      }
+
+      if( keywordToken == rsvdAbstract ) {
+        ParseAbstractDecl();
+        continue;
+      }
+
+      if( keywordToken == rsvdInterface ) {
+        ParseInterfaceDecl();
+        continue;
+      }
+
+      if( keywordToken == rsvdMethod ) {
+        ParseMethod();
+        continue;
+      }
+
+      if( keywordToken == rsvdOperator ) {
+        ParseOperatorFunc();
         continue;
       }
 

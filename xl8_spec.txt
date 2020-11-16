@@ -30,6 +30,29 @@ end
 
 typedef struct IDENT
   TYPESPEC IDENT, ...;
+  union {
+    TYPESPEC IDENTBASETYPE, ...;
+    ...
+  };
+  ...
+} IDENT;
+
+==
+
+union IDENT
+  TYPESPEC IDENT, ...
+  struct
+    TYPESPEC IDENT, ...
+    ...
+  end
+  ...
+end
+
+typedef union IDENT
+  TYPESPEC IDENT, ...;
+  struct {
+    TYPESPEC IDENT, ...;
+  };
   ...
 } IDENT;
 
@@ -108,13 +131,13 @@ object IDENT
   inherits OBJNAME, ...
 mutable
 immutable
-  TYPESPEC FIELDIDENT, ...
+  TYPESPEC MEMBERIDENT, ...
   ...
 end
 
 typedef struct IDENT {
-  TYPESPEC INHERITEDFIELDNAME, ...;
-  TYPESPEC FIELDIDENT, ...;
+  TYPESPEC INHERITEDMEMBERIDENT, ...;
+  TYPESPEC MEMBERIDENT, ...;
 } IDENT;
 
 ==
@@ -124,6 +147,7 @@ abstract IDENT
   inherits IFNAME, ...
 
   method TYPESPEC IDENT( TYPESPEC IDENT, ... )
+  ...
 end
 
 typedef struct IFNAMETYPE {
@@ -234,7 +258,7 @@ FUNCCALL( EXPR, ... );
 
 METHODCALL( EXPR, ... )
 
-METHODCALL( EXPR, ..., OBJVAR );
+METHODCALL( OBJVAR, EXPR, ... );
 
 ==
 
@@ -308,15 +332,17 @@ for( VARREF = EXPR; VARREF < EXPR; VARREF++ ) {
 
 ==
 
-echo( EXPR, ... )
+for VARREF = EXPR downto EXPR
+  STATEMENTS
+  next
+  break
+endfor
 
-printf( STRFMT, EXPR, ... );
-
-==
-
-echoln( EXPR, ... )
-
-printf( STRFMT"\n", EXPR, ... );
+for( VARREF = EXPR; VARREF > EXPR; VARREF-- ) {
+  STATEMENTS;
+  continue;
+  break;
+}
 
 ==
 
@@ -348,7 +374,19 @@ while( CONDITION ) {
 
 ==
 
-:Label
+echo( EXPR, ... )
+
+printf( STRFMT, EXPR, ... );
+
+==
+
+echoln( EXPR, ... )
+
+printf( STRFMT"\n", EXPR, ... );
+
+==
+
+Label:
 
 Label:
 
@@ -357,5 +395,11 @@ Label:
 goto LABELNAME
 
 goto LABELNAME;
+
+==
+
+exit( EXPR )
+
+exit( EXPR );
 
 ==
