@@ -1,4 +1,4 @@
-
+	
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,9 +32,14 @@
     errorBuildingIntermediateSource = 21,
     errorInTypeSpecification = 22,
     errorPendingImplementation = 23,
-    errorExpectedLeftParenthesis = 24,
-    errorExpectedRightParenthesis = 25,
+    expectedLeftParenthesis = 24,
+    expectedRightParenthesis = 25,
     expectedSymbol = 26,
+    errorSimpleTypeNotSpecified = 27,
+    expectedArrayDimension = 28,
+    errorUnsupportedSyntax = 29,
+    expectedLeftBrace = 30,
+    expectedRightBrace = 31,
   } ErrorCodes;
 
   typedef struct Keyword {
@@ -96,7 +101,7 @@
   unsigned GetToken();
   unsigned FindKeyword( char* identifier );
 
-  int ReadTypeSpec( TypeSpec* destSpec );
+  void ParseTypeSpec( TypeSpec* destSpec );
 
   void BeginParse();
   void ParseProgramHeader();
@@ -1069,13 +1074,18 @@ printf( "FindKeyword()\n" );
     return 0;
   }
 
-  int ReadTypeSpec( TypeSpec* destSpec ) {
+  void ParseTypeSpec( TypeSpec* destSpec ) {
     TypeSpec tempSpec = {};
     unsigned keywordToken;
 
-printf( "ReadTypeSpec()\n" );
-    if( !(retFile && destSpec) ) {
-      return 0;
+printf( "ParseTypeSpec()\n" );
+    if( retFile == NULL ) {
+      printf( "Error source file not open\n" );
+      exit( errorRetFileNotOpen );
+    }
+
+    if( destSpec == NULL ) {
+      return;
     }
 
     // Set pointer type if specified
@@ -1087,17 +1097,16 @@ printf( "ReadTypeSpec()\n" );
     // Set base type if specified
     keywordToken = FindKeyword(curTokenStr);
     if( (keywordToken >= firstType) && (keywordToken <= lastType) ) {
-      if( (keywordToken == ptrData) || (keywordToken == ptrRef) ) {
-        return 0; // Double pointers or references not directly supported
-      }
       tempSpec.baseType = curToken;
       memcpy( tempSpec.baseName, curTokenStr, sizeof(curTokenStr) );
       GetToken(); // Skip base type
     }
+
 if( curToken != tkIdent ) { // Temporary line until token table is implemented
     // Pointer type and/or base type are required
     if( (tempSpec.ptrType | tempSpec.baseType) == 0 ) {
-      return 0;
+      printf( "[L%u,C%u] Pointer type and/or base type must be specified.\n", curLine, curColumn );
+      exit( errorSimpleTypeNotSpecified );
     }
 } // Temporary line until token table is implemented
 
@@ -1114,22 +1123,24 @@ if( curToken != tkIdent ) { // Temporary line until token table is implemented
       case tkRBrace:
         // Array dimension required for non-pointers
         if( tempSpec.ptrType == 0 ) {
-          return 0;
+          printf( "[L%u,C%u] Array dimension must be specified for non-pointers\n", curLine, curColumn );
+          exit( expectedArrayDimension );
         }
         break;
 
       default:
-        return 0;
+        printf( "[L%u,C%u] Unsupported array dimension specified\n", curLine, curColumn );
+        exit( errorUnsupportedSyntax );
       }
 
       if( curToken != tkRBrace ) {
-        return 0;
+        printf( "[L%u,C%u] Array dimension must be closed with a right brace ]\n", curLine, curColumn );
+        exit( expectedRightBrace );
       }
       GetToken(); // Skip closing array bracket ]
     }
 
     memcpy( destSpec, &tempSpec, sizeof(tempSpec) );
-    return -1;
   }
 
   void BeginParse() {
@@ -1255,16 +1266,14 @@ printf( "ParseUnionDecl()\n" );
    *  type TYPESPEC IDENT
    */
   void ParseTypeDecl() {
-    TypeSpec typeDeclSpec = {};
+    TypeSpec typeSpec = {};
     unsigned keywordToken;
 
 printf( "ParseTypeDecl()\n" );
     GetToken(); // Skip keyword type
 
-    if( ReadTypeSpec(&typeDeclSpec) == 0 ) {
-      printf( "[L%u,C%u] Error in type specification\n", curLine, curColumn );
-      exit( errorInTypeSpecification );
-    }
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    ParseTypeSpec( &typeSpec );
 
     keywordToken = FindKeyword(curTokenStr);
     if( (curToken != tkIdent) || keywordToken ) {
@@ -1301,16 +1310,13 @@ printf( "ParseImportDecl()\n" );
 
     if( curToken != tkLParen ) {
       printf( "[L%u,C%u] Expected left parenthesis\n", curLine, curColumn );
-      exit( errorExpectedLeftParenthesis );
+      exit( expectedLeftParenthesis );
     }
     GetToken(); // Skip left parenthesis (
 
     do {
       memset( &typeSpec, 0, sizeof(typeSpec) );
-      if( ReadTypeSpec(&typeSpec) == 0 ) {
-        printf( "[L%u,C%u] Error in type specification\n", curLine, curColumn );
-        exit( errorInTypeSpecification );
-      }
+      ParseTypeSpec( &typeSpec );
 
       do {
         GetToken(); // Skip ident
@@ -1556,12 +1562,12 @@ printf( "ParseLabelDecl()\n" );
    *  end
    */
   void ParseLocalVarBlock() {
-    TypeSpec varTypeSpec;
+    TypeSpec typeSpec;
     unsigned keywordToken;
 
 printf( "ParseLocalVarBlock()\n" );
     if( retFile == NULL ) {
-      printf( "Error file not open\n" );
+      printf( "Error source file not open\n" );
       exit( errorRetFileNotOpen );
     }
 
@@ -1569,10 +1575,8 @@ printf( "ParseLocalVarBlock()\n" );
 
     while( curToken ) {
       // Get type specification
-      if( ReadTypeSpec(&varTypeSpec) == 0 ) {
-        printf( "[L%u,C%u] Error in type specification\n", curLine, curColumn );
-        exit( errorInTypeSpecification );
-      }
+      memset( &typeSpec, 0, sizeof(typeSpec) );
+      ParseTypeSpec( &typeSpec );
 
       // Declare local variables
       do {
