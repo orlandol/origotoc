@@ -115,7 +115,7 @@
   void ParseFuncDecl();
   void ParseFuncCall();
   void ParseMethodCall();
-  void ParseBindInterface();
+  void ParseBind();
   void ParseVarRef();
   void ParseIf();
   void ParseThen();
@@ -136,6 +136,8 @@
   void ParseLocalVarBlock();
   void ParseGoto();
   void ParseExit();
+  void ParseFuncStatement();
+  void ParseMethodStatement();
   void ParseStatement();
   void ParseFunc();
   void ParseObjectDecl();
@@ -1371,8 +1373,8 @@ printf( "ParseMethodCall()\n" );
   /*
    *  bind( OBJVAR, IFNAME, IFNAME.METHODNAME, ... )
    */
-  void ParseBindInterface() {
-printf( "ParseBindInterface()\n" );
+  void ParseBind() {
+printf( "ParseBind()\n" );
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1623,15 +1625,116 @@ printf( "ParseExit()\n" );
     exit( errorPendingImplementation );
   }
 
+  void ParseFuncStatement() {
+    unsigned keywordToken;
+
+printf( "ParseFuncStatement()\n" );
+    keywordToken = FindKeyword(curTokenStr);
+    switch( keywordToken ) {
+    case rsvdResult:
+      printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+      exit( errorPendingImplementation );
+      break;
+
+    case rsvdReturn:
+      printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+      exit( errorPendingImplementation );
+      break;
+
+    default:
+      ParseStatement();
+    }
+  }
+
+  void ParseMethodStatement() {
+    unsigned keywordToken;
+
+printf( "ParseMethodStatement()\n" );
+    keywordToken = FindKeyword(curTokenStr);
+    switch( keywordToken ) {
+    case rsvdSelf:
+      printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+      exit( errorPendingImplementation );
+      break;
+
+    case rsvdResult:
+      printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+      exit( errorPendingImplementation );
+      break;
+
+    case rsvdReturn:
+      printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+      exit( errorPendingImplementation );
+      break;
+
+    default:
+      ParseStatement();
+    }
+  }
+
   /*
    *  FUNCCALL, METHODCALL, bind, VAREXPR, if/then, if...endif, for...endfor,
    *  repeat...when, while...endwhile, echo, echoln, LABELDECL, goto, exit
    */
   void ParseStatement() {
+    unsigned keywordToken;
+
 printf( "ParseStatement()\n" );
 
-    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
-    exit( errorPendingImplementation );
+    keywordToken = FindKeyword(curTokenStr);
+    switch( keywordToken ) {
+    case rsvdIf:
+      ParseIf();
+      break;
+
+    case rsvdElseIf:
+      ParseElseIf();
+      break;
+
+    case rsvdElse:
+      ParseElse();
+      break;
+
+    case rsvdEndIf:
+      ParseEndIf();
+      break;
+
+    case rsvdBind:
+      ParseBind();
+      break;
+
+    case rsvdFor:
+      ParseFor();
+      break;
+
+    case rsvdRepeat:
+      ParseRepeat();
+      break;
+
+    case rsvdWhen:
+      ParseWhen();
+      break;
+
+    case rsvdEcho:
+      ParseEcho();
+      break;
+
+    case rsvdEchoLn:
+      ParseEchoLn();
+      break;
+
+    case rsvdGoto:
+      ParseGoto();
+      break;
+
+    case rsvdExit:
+      ParseExit();
+      break;
+
+    default:
+      printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
+      exit( errorPendingImplementation );
+    }
   }
 
   /*
@@ -1786,8 +1889,7 @@ printf( "ParseRun() main loop\n" );
           return;
 
         default:
-          printf( "[L%u,C%u] Expected end or statement\n", curLine, curColumn );
-          exit( expectedEndOrStatement );
+          ParseFuncStatement();
         }
         continue;
       }
