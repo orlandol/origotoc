@@ -40,6 +40,11 @@
     errorUnsupportedSyntax = 29,
     expectedLeftBrace = 30,
     expectedRightBrace = 31,
+    expectedDeclaredIdentifier = 32,
+    expectedStatement = 33,
+    errorParenNestedTooDeep = 34,
+    expectedValidOperator = 35,
+    expectedOperand = 36
   } ErrorCodes;
 
   typedef struct Keyword {
@@ -117,7 +122,10 @@
   void ParseMethodCall();
   void ParseBind();
   void ParseVarRef();
+  void ParseCondition();
   void ParseIf();
+  void ParseFuncThen();
+  void ParseMethodThen();
   void ParseThen();
   void ParseElseIf();
   void ParseElse();
@@ -136,9 +144,9 @@
   void ParseLocalVarBlock();
   void ParseGoto();
   void ParseExit();
-  void ParseFuncStatement();
-  void ParseMethodStatement();
-  void ParseStatement();
+  int ParseFuncStatement();
+  int ParseMethodStatement();
+  int ParseStatement();
   void ParseFunc();
   void ParseObjectDecl();
   void ParseAbstractDecl();
@@ -311,6 +319,7 @@
     // Operator tokens
     operSymbol = (6 << 9),
       operPrec00 = (operSymbol + (0 << 5)),
+        firstOper = operPrec00,
       operPrec01 = (operSymbol + (1 << 5)),
         opPostInc,
         opPostDec,
@@ -356,6 +365,7 @@
       operPrec14 = (operSymbol + (14 << 5)),
         opOrIs,
       operPrec15 = (operSymbol + (15 << 5)),
+        lastOper = operPrec15,
 
     // Assignment operators
     assignSymbol  = (7 << 9),
@@ -1391,13 +1401,114 @@ printf( "ParseVarRef()\n" );
   }
 
   /*
+   *  CONDITION
+   */
+  void ParseCondition() {
+    unsigned keywordToken;
+    unsigned parenLevel = 0;
+
+printf( "ParseCondition()\n" );
+    do {
+printf( "ParseCondition() main loop: Unary and open parenthesis section\n" );
+      // Parse unary operators
+      switch( curToken ) {
+      case tkLParen:
+        if( parenLevel == ((unsigned)-1) ) {
+          printf( "[L%u,C%u] Parenthesis nested too deep\n", curLine, curColumn );
+          exit( errorParenNestedTooDeep );
+        }
+        GetToken(); // Skip open parenthesis (
+        continue;
+
+      case opSub:
+        GetToken(); // Skip unary negate operator (-)
+        continue;
+
+      case opAdd:
+        GetToken(); // Skip unary positive operator (+)
+        continue;
+
+      case unaryNot:
+        GetToken(); // Skip unary bitwise not operator (~)
+        continue;
+
+      case unaryIsNot:
+        GetToken(); // Skip unary boolean not operator (!)
+        continue;
+      }
+
+printf( "ParseCondition() main loop: Operand section\n" );
+      // Parse right operand
+      switch( curToken ) {
+      case tkIdent:
+        keywordToken = FindKeyword(curTokenStr);
+        ///TODO: Add token lookup and additional validation
+        GetToken(); // Skip identifier
+
+        // Temporary - begin
+        if( curToken == tkLBrace ) {
+          GetToken(); // Skip open brace [
+
+          if( curToken != valUint ) {
+          }
+
+          GetToken(); // 
+        }
+        // Temporary - end
+        break;
+
+      case valUint:
+        GetToken(); // Skip uint value
+        break;
+
+      default:
+        printf( "[L%u,C%u] Expected variable, or integer value\n", curLine, curColumn );
+        exit( expectedOperand );
+      }
+
+      // Parse operator if present
+      if( (curToken >= firstOper) && (curToken <= lastOper) ) {
+        GetToken(); // Skip operator
+
+        ;;;
+      }
+    } while( curToken );
+  }
+
+  /*
    *  if CONDITION
    */
   void ParseIf() {
 printf( "ParseIf()\n" );
+    GetToken(); // Skip keyword if
 
-    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
-    exit( errorPendingImplementation );
+    ParseCondition();
+  }
+
+  /*
+   *  then FUNCSTATEMENT
+   */
+  void ParseFuncThen() {
+printf( "ParseFuncThen()\n" );
+    GetToken(); // Skip keyword then
+
+    if( ParseFuncStatement() == 0 ) {
+      printf( "[L%u,C%u] Expected function statement\n", curLine, curColumn );
+      exit( expectedStatement );
+    }
+  }
+
+  /*
+   *  then METHODSTATEMENT
+   */
+  void ParseMethodThen() {
+printf( "ParseMethodThen()\n" );
+    GetToken(); // Skip keyword then
+
+    if( ParseMethodStatement() == 0 ) {
+      printf( "[L%u,C%u] Expected method statement\n", curLine, curColumn );
+    }
+      exit( expectedStatement );
   }
 
   /*
@@ -1405,9 +1516,12 @@ printf( "ParseIf()\n" );
    */
   void ParseThen() {
 printf( "ParseThen()\n" );
+    GetToken(); // Skip keyword then
 
-    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
-    exit( errorPendingImplementation );
+    if( ParseStatement() == 0 ) {
+      printf( "[L%u,C%u] Expected statement\n", curLine, curColumn );
+      exit( expectedStatement );
+    }
   }
 
   /*
@@ -1610,9 +1724,13 @@ printf( "ParseLocalVarBlock()\n" );
    */
   void ParseGoto() {
 printf( "ParseGoto()\n" );
+    GetToken(); // Skip goto
 
-    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
-    exit( errorPendingImplementation );
+    if( curToken != tkIdent ) { ///TODO: Replace when token table is implemented
+      printf( "[L%u,C%u] Expected label\n", curLine, curColumn );
+      exit( expectedDeclaredIdentifier );
+    }
+    GetToken(); // Skip LABEL
   }
 
   /*
@@ -1625,116 +1743,127 @@ printf( "ParseExit()\n" );
     exit( errorPendingImplementation );
   }
 
-  void ParseFuncStatement() {
+  int ParseFuncStatement() {
     unsigned keywordToken;
 
 printf( "ParseFuncStatement()\n" );
-    keywordToken = FindKeyword(curTokenStr);
-    switch( keywordToken ) {
-    case rsvdResult:
+    if( strcmp(curTokenStr, "result") == 0 ) {
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
-      break;
-
-    case rsvdReturn:
+//      return -1;
+    } else if( strcmp(curTokenStr, "return") == 0 ) {
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
-      break;
-
-    default:
-      ParseStatement();
+//      return -1;
+    } else if( strcmp(curTokenStr, "then") == 0 ) {
+      ParseFuncThen();
+      return -1;
     }
+
+    return ParseStatement();
   }
 
-  void ParseMethodStatement() {
+  int ParseMethodStatement() {
     unsigned keywordToken;
 
 printf( "ParseMethodStatement()\n" );
-    keywordToken = FindKeyword(curTokenStr);
-    switch( keywordToken ) {
-    case rsvdSelf:
+    if( strcmp(curTokenStr, "self") == 0 ) {
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
-      break;
-
-    case rsvdResult:
+//      return -1;
+    } else if( strcmp(curTokenStr, "result") == 0 ) {
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
-      break;
-
-    case rsvdReturn:
+//      return -1;
+    } else if( strcmp(curTokenStr, "return") == 0 ) {
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
-      break;
-
-    default:
-      ParseStatement();
+//      return -1;
+    } else if( strcmp(curTokenStr, "then") == 0 ) {
+      ParseMethodThen();
+      return -1;
     }
+
+    return ParseStatement();
   }
 
   /*
    *  FUNCCALL, METHODCALL, bind, VAREXPR, if/then, if...endif, for...endfor,
    *  repeat...when, while...endwhile, echo, echoln, LABELDECL, goto, exit
    */
-  void ParseStatement() {
+  int ParseStatement() {
     unsigned keywordToken;
 
 printf( "ParseStatement()\n" );
-
     keywordToken = FindKeyword(curTokenStr);
     switch( keywordToken ) {
+    case rsvdBind:
+      ParseBind();
+      return -1;
+
     case rsvdIf:
       ParseIf();
-      break;
+      return -1;
 
     case rsvdElseIf:
       ParseElseIf();
-      break;
+      return -1;
 
     case rsvdElse:
       ParseElse();
-      break;
+      return -1;
 
     case rsvdEndIf:
       ParseEndIf();
-      break;
-
-    case rsvdBind:
-      ParseBind();
-      break;
+      return -1;
 
     case rsvdFor:
       ParseFor();
-      break;
+      return -1;
+
+    case rsvdEndFor:
+      ParseEndFor();
+      return -1;
 
     case rsvdRepeat:
       ParseRepeat();
-      break;
+      return -1;
 
     case rsvdWhen:
       ParseWhen();
-      break;
+      return -1;
+
+    case rsvdWhile:
+      ParseWhile();
+      return -1;
+
+    case rsvdEndWhile:
+      ParseEndWhile();
+      return -1;
 
     case rsvdEcho:
       ParseEcho();
-      break;
+      return -1;
 
     case rsvdEchoLn:
       ParseEchoLn();
-      break;
+      return -1;
 
     case rsvdGoto:
       ParseGoto();
-      break;
+      return -1;
 
     case rsvdExit:
       ParseExit();
-      break;
-
-    default:
-      printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
-      exit( errorPendingImplementation );
+      return -1;
     }
+
+    if( (curToken == tkIdent) && (nextToken == tkColon) ) {
+      ParseLabelDecl();
+      return -1;
+    }
+
+    return 0;
   }
 
   /*
@@ -1882,20 +2011,17 @@ printf( "ParseRun()\n" );
     do {
 printf( "ParseRun() main loop\n" );
       keywordToken = FindKeyword(curTokenStr);
-      if( (keywordToken >= firstRsvd) && (keywordToken <= lastRsvd) ) {
-        switch( keywordToken ) {
-        case rsvdEnd:
-          ParseEndRun();
-          return;
+      switch( keywordToken ) {
+      case rsvdEnd:
+        ParseEndRun();
+        return;
 
-        default:
-          ParseFuncStatement();
+      default:
+        if( ParseStatement() == 0 ) {
+          printf( "[L%u,C%u] Expected end or statement\n", curLine, curColumn );
+          exit( expectedEndOrStatement );
         }
-        continue;
       }
-
-      printf( "[L%u,C%u] Expected end or statement\n", curLine, curColumn );
-      exit( expectedEndOrStatement );
     } while( curToken );
   }
 
