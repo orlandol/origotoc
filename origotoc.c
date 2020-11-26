@@ -8,6 +8,7 @@
  * Declarations
  */
 
+  // Enum names with redundant values for easy program exit code cross-reference
   typedef enum ErrorCodes {
     errorInvalidCommandline = 1,
     errorSLCommentClosedWithEOF = 2,
@@ -46,7 +47,9 @@
     expectedValidOperator = 35,
     expectedOperand = 36,
     errorUnsupportedArrayIndex = 37,
-    expectedUnaryOperatorOrOperand = 38
+    expectedUnaryOperatorOrOperand = 38,
+    errorUnsupportedOperator = 39,
+    expectedVariable = 40,
   } ErrorCodes;
 
   typedef struct Keyword {
@@ -1411,7 +1414,7 @@ printf( "ParseVarRef()\n" );
 
 printf( "ParseCondition()\n" );
     do {
-      // Parse Unary or open parenthesis
+      // Parse left unary operator, or open parenthesis
       do {
         switch( curToken ) {
         case tkLParen:
@@ -1449,6 +1452,14 @@ putchar('.');
 
       // Parse left operand
       switch( curToken ) {
+      case opPreInc:
+      case opPreDec:
+        // Parse left pre-increment/decrement operator
+        if( curToken != tkIdent ) { // Change when token table is implemented
+          printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
+          exit( expectedVariable );
+        }
+
       case tkIdent: // Change when token table is implemented
         GetToken(); // Skip identifier
 
@@ -1477,6 +1488,8 @@ putchar('.');
           GetToken(); // Skip closing brace (])
         }
         // Temporary - end parse array dimension
+
+        // Parse left post-increment/decrement operator
 putchar('-');
         break;
 
@@ -1490,16 +1503,133 @@ putchar('-');
 //        exit( expectedOperand );
       }
 
-putchar('?');
       // Parse right subexpression
       if( (curToken >= firstOper) && (curToken <= lastOper) ) {
+        // Parse operator
+        switch( curToken ) {
+        case opLT:
+        case opLTEq:
+        case opGT:
+        case opGTEq:
+        case opEq:
+        case opNotEq:
+        case opAndIs:
+        case opOrIs:
+        case opPostInc:
+        case opPostDec:
+        case opPreInc:
+        case opPreDec:
+        case opMul:
+        case opDiv:
+        case opMod:
+        case opAdd:
+        case opSub:
+        case opShl:
+        case opShr:
+        case opAnd:
+        case opXor:
+        case opOr:
+          break;
+
+        default:
+          printf( "[L%u,C%u] Unsupported operator\n", curLine, curColumn );
+//          exit( errorUnsupportedOperator );
+        }
+putchar('?');
         GetToken(); // Skip operator
 
         // Parse right unary
+        do {
+          switch( curToken ) {
+          case tkLParen:
+            if( parenLevel == ((unsigned)-1) ) {
+              printf( "[L%u,C%u] Parenthesis nested too deep\n", curLine, curColumn );
+              exit( errorParenNestedTooDeep );
+            }
+            parenLevel++;
+            GetToken(); // Skip open parenthesis (
+putchar('#');
+            continue;
+
+          case opSub:
+            GetToken(); // Skip unary negate operator (-)
+putchar('#');
+            continue;
+
+          case opAdd:
+            GetToken(); // Skip unary positive operator (+)
+putchar('#');
+            continue;
+
+          case unaryNot:
+            GetToken(); // Skip bitwise unary not operator (~)
+putchar('#');
+            continue;
+
+          case unaryIsNot:
+            GetToken(); // Skip boolean unary not operator (!)
+putchar('#');
+            continue;
+          }
+          break;
+        } while( curToken );
+
         // Parse right operand
+        switch( curToken ) {
+          case opPreInc:
+          case opPreDec:
+            // Parse right pre-increment/decrement operator
+            if( curToken != tkIdent ) { // Change when token table is implemented
+              printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
+              exit( expectedVariable );
+            }
+
+        case tkIdent: // Change when token table is implemented
+          GetToken(); // Skip identifier
+
+          // Temporary - begin parse array dimension
+          if( curToken == tkLBrace ) {
+            GetToken(); // Skip open brace ([)
+
+            switch( curToken ) { // Parse array index
+            case tkIdent: // Change when token table is implemented
+              GetToken(); // Skip array index identifier
+              break;
+
+            case valUint:
+              GetToken(); // Skip array index value
+              break;
+
+            default:
+              printf( "[L%u,C%u] Unsupported array index\n", curLine, curColumn );
+              exit( errorUnsupportedArrayIndex );
+            }
+
+            if( curToken != tkRBrace ) {
+              printf( "[L%u,C%u] Expected right brace\n", curLine, curColumn );
+              exit( errorUnsupportedArrayIndex );
+            }
+            GetToken(); // Skip closing brace (])
+          }
+          // Temporary - end parse array dimension
+
+          // Parse right post-increment/decrement operator
+putchar('^');
+          break;
+
+        case valUint:
+          GetToken(); // Skip uint value
+putchar('^');
+          break;
+
+        default:
+          printf( "[L%u,C%u] Expected left operand variable or value\n", curLine, curColumn );
+//          exit( expectedOperand );
+        }
       }
 
-      if( curToken == tkRParen ) {
+      // Parse closing parenthesis
+      while( curToken == tkRParen ) {
         if( parenLevel == 0 ) {
           printf( "[L%u,C%u] Parenthesis must be open with ( before closed with )\n", curLine, curColumn );
           exit( expectedRightParenthesis );
