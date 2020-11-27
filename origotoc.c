@@ -1452,13 +1452,14 @@ putchar('.');
 
       // Parse left operand
       switch( curToken ) {
-      case opPreInc:
-      case opPreDec:
+      case opPostInc:
+      case opPostDec:
         // Parse left pre-increment/decrement operator
         if( curToken != tkIdent ) { // Change when token table is implemented
           printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
           exit( expectedVariable );
         }
+        GetToken(); // Skip pre-increment/decrement operator
 
       case tkIdent: // Change when token table is implemented
         GetToken(); // Skip identifier
@@ -1490,6 +1491,13 @@ putchar('.');
         // Temporary - end parse array dimension
 
         // Parse left post-increment/decrement operator
+        switch( curToken ) {
+        case opPostInc:
+        case opPostDec:
+          GetToken(); // Skip post-increment/decrement operator
+          break;
+        }
+
 putchar('-');
         break;
 
@@ -1500,7 +1508,7 @@ putchar('-');
 
       default:
         printf( "[L%u,C%u] Expected left operand variable or value\n", curLine, curColumn );
-//        exit( expectedOperand );
+        exit( expectedOperand );
       }
 
       // Parse right subexpression
@@ -1515,10 +1523,6 @@ putchar('-');
         case opNotEq:
         case opAndIs:
         case opOrIs:
-        case opPostInc:
-        case opPostDec:
-        case opPreInc:
-        case opPreDec:
         case opMul:
         case opDiv:
         case opMod:
@@ -1533,7 +1537,7 @@ putchar('-');
 
         default:
           printf( "[L%u,C%u] Unsupported operator\n", curLine, curColumn );
-//          exit( errorUnsupportedOperator );
+          exit( errorUnsupportedOperator );
         }
 putchar('?');
         GetToken(); // Skip operator
@@ -1576,13 +1580,14 @@ putchar('#');
 
         // Parse right operand
         switch( curToken ) {
-          case opPreInc:
-          case opPreDec:
+          case opPostInc:
+          case opPostDec:
             // Parse right pre-increment/decrement operator
             if( curToken != tkIdent ) { // Change when token table is implemented
               printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
               exit( expectedVariable );
             }
+            GetToken(); // Skip pre-increment/decrement operator
 
         case tkIdent: // Change when token table is implemented
           GetToken(); // Skip identifier
@@ -1614,6 +1619,13 @@ putchar('#');
           // Temporary - end parse array dimension
 
           // Parse right post-increment/decrement operator
+          switch( curToken ) {
+          case opPostInc:
+          case opPostDec:
+            GetToken(); // Skip post-increment/decrement operator
+            break;
+          }
+
 putchar('^');
           break;
 
@@ -1624,7 +1636,7 @@ putchar('^');
 
         default:
           printf( "[L%u,C%u] Expected left operand variable or value\n", curLine, curColumn );
-//          exit( expectedOperand );
+          exit( expectedOperand );
         }
       }
 
@@ -1639,8 +1651,8 @@ putchar('^');
 putchar('!');
       }
 
-      printf( "ParseCondition() breakpoint: curTokenStr == %s; curToken == %u; nextTokenStr == %s; nextToken == %u\n", curTokenStr, curToken, nextTokenStr, nextToken );
-      exit( 255 );
+//      printf( "ParseCondition() breakpoint: curTokenStr == %s; curToken == %u; nextTokenStr == %s; nextToken == %u\n", curTokenStr, curToken, nextTokenStr, nextToken );
+//      exit( 255 );
     } while( curToken );
   }
 
