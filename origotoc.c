@@ -690,7 +690,6 @@
   }
 
   void SkipSpace() {
-printf( "SkipSpace()\n" );
     while( isspace(curCh) ) {
       ReadChar();
     }
@@ -700,7 +699,6 @@ printf( "SkipSpace()\n" );
     unsigned commentLevel;
     unsigned loopFlags;
 
-printf( "SkipSpaceAndComments()\n" );
     do {
       loopFlags = 0;
 
@@ -765,7 +763,7 @@ printf( "SkipSpaceAndComments()\n" );
   int ReadIdent( char* destIdent, size_t destMaxLen ) {
     size_t destIndex = 0;
 
-printf( "ReadIdent()\n" );
+printf( "  ReadIdent()\n" );
     if( !(retFile && destIdent && destMaxLen) ) {
       return 0;
     }
@@ -788,7 +786,7 @@ printf( "ReadIdent()\n" );
   int ReadBinNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "ReadBinNum()\n" );
+printf( "  ReadBinNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -821,7 +819,7 @@ printf( "ReadBinNum()\n" );
   int ReadOctalNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "ReadOctalNum()\n" );
+printf( "  ReadOctalNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -855,7 +853,7 @@ printf( "ReadOctalNum()\n" );
   int ReadHexNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "ReadHexNum()\n" );
+printf( "  ReadHexNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -893,7 +891,7 @@ printf( "ReadHexNum()\n" );
   int ReadNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "ReadNum()\n" );
+printf( "  ReadNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -932,7 +930,7 @@ printf( "ReadNum()\n" );
     size_t destIndex = 0;
     char quoteCh;
 
-printf( "ReadString()\n" );
+printf( "  ReadString()\n" );
     if( !(retFile && destString && destMaxLen) ) {
       return 0;
     }
@@ -968,7 +966,7 @@ printf( "ReadString()\n" );
     int    compareCode;
     unsigned token = 0;
 
-printf( "ReadOperator()\n" );
+printf( "  ReadOperator()\n" );
     if( !(retFile && ispunct(curCh)) ) {
       return 0;
     }
@@ -1024,13 +1022,13 @@ printf( "ReadOperator()\n" );
     memset( nextTokenStr, 0, sizeof(nextTokenStr) );
     memset( &nextTokenVal, 0, sizeof(nextTokenVal) );
 
-printf( "GetToken()\n" );
     // Prepare to read next token
     SkipSpaceAndComments();
 
     nextLine = line;
     nextColumn = column;
 
+printf( "GetToken(): curTokenStr == %s\n", curTokenStr );
     // Determine next token type, then read it
     if( (curCh == '_') || isalpha(curCh) ) {
       if( ReadIdent(nextTokenStr, sizeof(nextTokenStr)) ) {
@@ -1068,7 +1066,7 @@ printf( "GetToken()\n" );
     size_t keywordIndex = keywordCount / 2;
     int    compareCode = 0;
 
-printf( "FindKeyword()\n" );
+printf( "  FindKeyword()\n" );
     if( !(identifier && (*identifier)) ) {
       return 0;
     }
@@ -1424,27 +1422,22 @@ printf( "ParseCondition()\n" );
           }
           parenLevel++;
           GetToken(); // Skip open parenthesis (
-putchar('.');
           continue;
 
         case opSub:
           GetToken(); // Skip unary negate operator (-)
-putchar('.');
           continue;
 
         case opAdd:
           GetToken(); // Skip unary positive operator (+)
-putchar('.');
           continue;
 
         case unaryNot:
           GetToken(); // Skip bitwise unary not operator (~)
-putchar('.');
           continue;
 
         case unaryIsNot:
           GetToken(); // Skip boolean unary not operator (!)
-putchar('.');
           continue;
         }
         break;
@@ -1497,13 +1490,10 @@ putchar('.');
           GetToken(); // Skip post-increment/decrement operator
           break;
         }
-
-putchar('-');
         break;
 
       case valUint:
         GetToken(); // Skip uint value
-putchar('-');
         break;
 
       default:
@@ -1539,7 +1529,6 @@ putchar('-');
           printf( "[L%u,C%u] Unsupported operator\n", curLine, curColumn );
           exit( errorUnsupportedOperator );
         }
-putchar('?');
         GetToken(); // Skip operator
 
         // Parse right unary
@@ -1552,27 +1541,22 @@ putchar('?');
             }
             parenLevel++;
             GetToken(); // Skip open parenthesis (
-putchar('#');
             continue;
 
           case opSub:
             GetToken(); // Skip unary negate operator (-)
-putchar('#');
             continue;
 
           case opAdd:
             GetToken(); // Skip unary positive operator (+)
-putchar('#');
             continue;
 
           case unaryNot:
             GetToken(); // Skip bitwise unary not operator (~)
-putchar('#');
             continue;
 
           case unaryIsNot:
             GetToken(); // Skip boolean unary not operator (!)
-putchar('#');
             continue;
           }
           break;
@@ -1625,13 +1609,10 @@ putchar('#');
             GetToken(); // Skip post-increment/decrement operator
             break;
           }
-
-putchar('^');
           break;
 
         case valUint:
           GetToken(); // Skip uint value
-putchar('^');
           break;
 
         default:
@@ -1648,7 +1629,6 @@ putchar('^');
         }
         parenLevel--;
         GetToken(); // Skip close parenthesis )
-putchar('!');
       }
 
 //      printf( "ParseCondition() breakpoint: curTokenStr == %s; curToken == %u; nextTokenStr == %s; nextToken == %u\n", curTokenStr, curToken, nextTokenStr, nextToken );
@@ -2166,7 +2146,7 @@ printf( "ParseOperatorFunc()\n" );
   void ParseRun() {
     unsigned keywordToken;
 
-printf( "ParseRun() entered\n" );
+printf( "ParseRun()\n" );
     if( runDeclared ) {
       printf( "[L%u,C%u] run is already declared\n", curLine, curColumn );
       exit( runAlreadyDeclared );
@@ -2174,7 +2154,7 @@ printf( "ParseRun() entered\n" );
     runDeclared = -1;
     GetToken(); // Skip run
 
-printf( "ParseRun()\n" );
+printf( "ParseRun() entered\n" );
     if( cFile ) {
       fprintf( cFile, "\nint main( int argc, char* argv[] ) {\n" );
     } else {
