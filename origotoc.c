@@ -482,23 +482,23 @@
     "/=",   assignDiv,
     ":",    tkColon,
     "<",    opLT,
-//    "<-<",  opSRol,
-//    "<-<=", assignSRol,
+    "<-<",  opSRol,
+    "<-<=", assignSRol,
     "<<",   opShl,
-//    "<<<",  opRol,
-//    "<<<=", assignRol,
+    "<<<",  opRol,
+    "<<<=", assignRol,
     "<<=",  assignShl,
     "<=",   opLTEq,
     "=",    assignTo,
     "==",   opEq,
     ">",    opGT,
-//    ">->",  opSRor,
-//    ">->=", assignSRor,
+    ">->",  opSRor,
+    ">->=", assignSRor,
     ">=",   opGTEq,
     ">>",   opShr,
     ">>=",  assignShr,
-//    ">>>",  opRor,
-//    ">>>=", assignRor,
+    ">>>",  opRor,
+    ">>>=", assignRor,
     "@",    ptrData,
     "[",    tkLBrace,
     "[[",   tkLDoubleBrace,
@@ -508,8 +508,8 @@
     "^=",   assignXor,
     "|",    opOr,
     "|=",   assignOr,
-//    "|>>",  opSShr,
-//    "|>>=", assignSShr,
+    "|>>",  opSShr,
+    "|>>=", assignSShr,
     "||",   opOrIs,
     "~",    unaryNot,
     "~=",   assignNot
@@ -684,8 +684,6 @@
         }
       }
     }
-
-//printf( "ReadChar(): curCh == %c; nextCh == %c\n", curCh == '\r' ? ' ' : curCh == '\n' ? ' ' : curCh, nextCh == '\r' ? ' ' : nextCh == '\n' ? ' ' : nextCh );
     return curCh;
   }
 
@@ -763,7 +761,6 @@
   int ReadIdent( char* destIdent, size_t destMaxLen ) {
     size_t destIndex = 0;
 
-printf( "  ReadIdent()\n" );
     if( !(retFile && destIdent && destMaxLen) ) {
       return 0;
     }
@@ -786,7 +783,6 @@ printf( "  ReadIdent()\n" );
   int ReadBinNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "  ReadBinNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -819,7 +815,6 @@ printf( "  ReadBinNum()\n" );
   int ReadOctalNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "  ReadOctalNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -853,7 +848,6 @@ printf( "  ReadOctalNum()\n" );
   int ReadHexNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "  ReadHexNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -891,7 +885,6 @@ printf( "  ReadHexNum()\n" );
   int ReadNum( unsigned* destNum ) {
     unsigned result = 0;
 
-printf( "  ReadNum()\n" );
     if( !(retFile && destNum) ) {
       return 0;
     }
@@ -930,7 +923,6 @@ printf( "  ReadNum()\n" );
     size_t destIndex = 0;
     char quoteCh;
 
-printf( "  ReadString()\n" );
     if( !(retFile && destString && destMaxLen) ) {
       return 0;
     }
@@ -966,7 +958,6 @@ printf( "  ReadString()\n" );
     int    compareCode;
     unsigned token = 0;
 
-printf( "  ReadOperator()\n" );
     if( !(retFile && ispunct(curCh)) ) {
       return 0;
     }
@@ -1028,7 +1019,6 @@ printf( "  ReadOperator()\n" );
     nextLine = line;
     nextColumn = column;
 
-printf( "GetToken(): curTokenStr == %s\n", curTokenStr );
     // Determine next token type, then read it
     if( (curCh == '_') || isalpha(curCh) ) {
       if( ReadIdent(nextTokenStr, sizeof(nextTokenStr)) ) {
@@ -1066,7 +1056,6 @@ printf( "GetToken(): curTokenStr == %s\n", curTokenStr );
     size_t keywordIndex = keywordCount / 2;
     int    compareCode = 0;
 
-printf( "  FindKeyword()\n" );
     if( !(identifier && (*identifier)) ) {
       return 0;
     }
@@ -1093,7 +1082,6 @@ printf( "  FindKeyword()\n" );
     TypeSpec tempSpec = {};
     unsigned keywordToken;
 
-printf( "ParseTypeSpec()\n" );
     if( retFile == NULL ) {
       printf( "Error source file not open\n" );
       exit( errorRetFileNotOpen );
@@ -1170,7 +1158,6 @@ if( curToken != tkIdent ) { // Temporary line until token table is implemented
     GetToken();
     GetToken();
 
-printf( "BeginParse()\n" );
     // Initialize C file
     if( cFile ) {
       fprintf( cFile, "\n#include \"%s\"\n", headerName );
@@ -1205,29 +1192,28 @@ printf( "BeginParse()\n" );
    */
   void ParseProgramHeader() {
     unsigned programToken;
-printf( "ParseProgramHeader()\n" );
 
-    // program PROGRAMNAME
+    // program IDENT
     programToken = FindKeyword(curTokenStr);
     if( programToken != rsvdProgram ) {
       printf( "[L%u,C%u] Expected keyword program\n", curLine, curColumn );
       exit( expectedKeyword );
     }
-    GetToken(); // Skip program
+    GetToken(); // Skip keyword program
 
     if( curToken != tkIdent ) {
       printf( "[L%u,C%u] Expected undeclared identifier for program name\n", curLine, curColumn );
       exit( expectedUndeclaredIdentifier );
     }
     memcpy( programName, curTokenStr, sizeof(curTokenStr) );
-    GetToken(); // Skip PROGRAMNAME
+    GetToken(); // Skip IDENT
   }
 
   /*
    *  const TYPESPEC IDENT = CEXPR
    */
   void ParseConstDecl() {
-printf( "ParseConstDecl()\n" );
+    GetToken(); // Skip keyword const
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1240,7 +1226,7 @@ printf( "ParseConstDecl()\n" );
    *  end
    */
   void ParseEnumDecl() {
-printf( "ParseEnumDecl()\n" );
+    GetToken(); // Skip keyword enum
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1254,7 +1240,7 @@ printf( "ParseEnumDecl()\n" );
    *  end
    */
   void ParseStructDecl() {
-printf( "ParseStructDecl()\n" );
+    GetToken(); // Skip keyword struct
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1271,7 +1257,7 @@ printf( "ParseStructDecl()\n" );
    *  end
    */
   void ParseUnionDecl() {
-printf( "ParseUnionDecl()\n" );
+    GetToken(); // Skip keyword union
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1283,8 +1269,6 @@ printf( "ParseUnionDecl()\n" );
   void ParseTypeDecl() {
     TypeSpec typeSpec = {};
     unsigned keywordToken;
-
-printf( "ParseTypeDecl()\n" );
     GetToken(); // Skip keyword type
 
     memset( &typeSpec, 0, sizeof(typeSpec) );
@@ -1305,7 +1289,7 @@ printf( "ParseTypeDecl()\n" );
    *  end
    */
   void ParseGlobalVarBlock() {
-printf( "ParseGlobalVarBlock()\n" );
+    GetToken(); // Skip keyword var
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1319,9 +1303,7 @@ printf( "ParseGlobalVarBlock()\n" );
     unsigned keywordToken;
 
     GetToken(); // Skip keyword import
-
-printf( "ParseImportDecl()\n" );
-    GetToken(); // Skip ident
+    GetToken(); // Skip IDENT
 
     if( curToken != tkLParen ) {
       printf( "[L%u,C%u] Expected left parenthesis\n", curLine, curColumn );
@@ -1357,7 +1339,7 @@ printf( "ParseImportDecl()\n" );
    *  funcdecl TYPESPEC IDENT( TYPESPEC IDENT, ... )
    */
   void ParseFuncDecl() {
-printf( "ParseFuncDecl()\n" );
+    GetToken(); // Skip keyword funcdecl
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1367,8 +1349,6 @@ printf( "ParseFuncDecl()\n" );
    *  FUNCCALL( EXPR, ... )
    */
   void ParseFuncCall() {
-printf( "ParseFuncCall()\n" );
-
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
   }
@@ -1377,8 +1357,6 @@ printf( "ParseFuncCall()\n" );
    *  METHODCALL( EXPR, ... )
    */
   void ParseMethodCall() {
-printf( "ParseMethodCall()\n" );
-
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
   }
@@ -1387,7 +1365,7 @@ printf( "ParseMethodCall()\n" );
    *  bind( OBJVAR, IFNAME, IFNAME.METHODNAME, ... )
    */
   void ParseBind() {
-printf( "ParseBind()\n" );
+    GetToken(); // Skip keyword bind
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1397,8 +1375,6 @@ printf( "ParseBind()\n" );
    *  VARREF ASSIGNOP EXPR
    */
   void ParseVarRef() {
-printf( "ParseVarRef()\n" );
-
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
   }
@@ -1416,6 +1392,7 @@ printf( "ParseCondition()\n" );
       do {
         switch( curToken ) {
         case tkLParen:
+printf( "ParseCondition() main loop: left open parenthesis (\n" );
           if( parenLevel == ((unsigned)-1) ) {
             printf( "[L%u,C%u] Parenthesis nested too deep\n", curLine, curColumn );
             exit( errorParenNestedTooDeep );
@@ -1425,18 +1402,22 @@ printf( "ParseCondition()\n" );
           continue;
 
         case opSub:
+printf( "ParseCondition() main loop: left unary -\n" );
           GetToken(); // Skip unary negate operator (-)
           continue;
 
         case opAdd:
+printf( "ParseCondition() main loop: left unary +\n" );
           GetToken(); // Skip unary positive operator (+)
           continue;
 
         case unaryNot:
+printf( "ParseCondition() main loop: left unary ~\n" );
           GetToken(); // Skip bitwise unary not operator (~)
           continue;
 
         case unaryIsNot:
+printf( "ParseCondition() main loop: left unary !\n" );
           GetToken(); // Skip boolean unary not operator (!)
           continue;
         }
@@ -1447,6 +1428,7 @@ printf( "ParseCondition()\n" );
       switch( curToken ) {
       case opPostInc:
       case opPostDec:
+printf( "ParseCondition() main loop: ++/-- left operand\n" );
         // Parse left pre-increment/decrement operator
         if( curToken != tkIdent ) { // Change when token table is implemented
           printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
@@ -1455,22 +1437,27 @@ printf( "ParseCondition()\n" );
         GetToken(); // Skip pre-increment/decrement operator
 
       case tkIdent: // Change when token table is implemented
+printf( "ParseCondition() main loop: left operand curTokenStr == %s\n", curTokenStr );
         GetToken(); // Skip identifier
 
         // Temporary - begin parse array dimension
         if( curToken == tkLBrace ) {
+printf( "ParseCondition() main loop: left operand [\n" );
           GetToken(); // Skip open brace ([)
 
           switch( curToken ) { // Parse array index
           case tkIdent: // Change when token table is implemented
+printf( "ParseCondition() main loop: left operand array index curTokenStr == %s\n", curTokenStr );
             GetToken(); // Skip array index identifier
             break;
 
           case valUint:
+printf( "ParseCondition() main loop: left operand array index curTokenVal.valUint == %u\n", curTokenVal.valUint );
             GetToken(); // Skip array index value
             break;
 
           default:
+printf( "ParseCondition() main loop: left operand array index ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
             printf( "[L%u,C%u] Unsupported array index\n", curLine, curColumn );
             exit( errorUnsupportedArrayIndex );
           }
@@ -1487,16 +1474,19 @@ printf( "ParseCondition()\n" );
         switch( curToken ) {
         case opPostInc:
         case opPostDec:
+printf( "ParseCondition() main loop: left operand --/++\n" );
           GetToken(); // Skip post-increment/decrement operator
           break;
         }
         break;
 
       case valUint:
+printf( "ParseCondition() main loop: left operand curTokenVal.valUint == %u\n", curTokenVal.valUint );
         GetToken(); // Skip uint value
         break;
 
       default:
+printf( "ParseCondition() main loop: left operand ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
         printf( "[L%u,C%u] Expected left operand variable or value\n", curLine, curColumn );
         exit( expectedOperand );
       }
@@ -1523,9 +1513,11 @@ printf( "ParseCondition()\n" );
         case opAnd:
         case opXor:
         case opOr:
+printf( "ParseCondition() main loop: operator curToken == %u; firstOper == %u; lastOper == %u\n", curToken, firstOper, lastOper );
           break;
 
         default:
+printf( "ParseCondition() main loop: operator ??? curTokenStr == %s; curToken == %u; firstOper == %u; lastOper == %u\n", curTokenStr, curToken, firstOper, lastOper );
           printf( "[L%u,C%u] Unsupported operator\n", curLine, curColumn );
           exit( errorUnsupportedOperator );
         }
@@ -1640,7 +1632,6 @@ printf( "ParseCondition()\n" );
    *  if CONDITION
    */
   void ParseIf() {
-printf( "ParseIf()\n" );
     GetToken(); // Skip keyword if
 
     ParseCondition();
@@ -1650,7 +1641,6 @@ printf( "ParseIf()\n" );
    *  then FUNCSTATEMENT
    */
   void ParseFuncThen() {
-printf( "ParseFuncThen()\n" );
     GetToken(); // Skip keyword then
 
     if( ParseFuncStatement() == 0 ) {
@@ -1663,7 +1653,6 @@ printf( "ParseFuncThen()\n" );
    *  then METHODSTATEMENT
    */
   void ParseMethodThen() {
-printf( "ParseMethodThen()\n" );
     GetToken(); // Skip keyword then
 
     if( ParseMethodStatement() == 0 ) {
@@ -1676,7 +1665,6 @@ printf( "ParseMethodThen()\n" );
    *  then STATEMENT
    */
   void ParseThen() {
-printf( "ParseThen()\n" );
     GetToken(); // Skip keyword then
 
     if( ParseStatement() == 0 ) {
@@ -1689,7 +1677,7 @@ printf( "ParseThen()\n" );
    *  elseif CONDITION
    */
   void ParseElseIf() {
-printf( "ParseElseIf()\n" );
+    GetToken(); // Skip keyword elseif
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1699,7 +1687,7 @@ printf( "ParseElseIf()\n" );
    *  else // Last elseXYZ section before endif
    */
   void ParseElse() {
-printf( "ParseElse()\n" );
+    GetToken(); // Skip keyword else
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1709,7 +1697,7 @@ printf( "ParseElse()\n" );
    *  endif
    */
   void ParseEndIf() {
-printf( "ParseEndIf()\n" );
+    GetToken(); // Skip keyword endif
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1719,7 +1707,7 @@ printf( "ParseEndIf()\n" );
    *  for VARREF in [CEXPR, ...]
    */
   void ParseForIn() {
-printf( "ParseForIn()\n" );
+    GetToken(); // Skip keyword in
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1730,7 +1718,7 @@ printf( "ParseForIn()\n" );
    *  for VARREF = EXPR downto EXPR
    */
   void ParseForToDownTo() {
-printf( "ParseForToDownTo()\n" );
+    GetToken(); // Skip keyword to, or keyword downto
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1742,7 +1730,7 @@ printf( "ParseForToDownTo()\n" );
    *  for VARREF = EXPR downto EXPR
    */
   void ParseFor() {
-printf( "ParseFor()\n" );
+    GetToken(); // Skip keyword for
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1752,7 +1740,7 @@ printf( "ParseFor()\n" );
    *  endfor
    */
   void ParseEndFor() {
-printf( "ParseEndFor()\n" );
+    GetToken(); // Skip keyword endfor
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1762,7 +1750,7 @@ printf( "ParseEndFor()\n" );
    *  echo( EXPR, ... )
    */
   void ParseEcho() {
-printf( "ParseEcho()\n" );
+    GetToken(); // Skip keyword echo
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1772,7 +1760,7 @@ printf( "ParseEcho()\n" );
    *  echo( EXPR, ... )
    */
   void ParseEchoLn() {
-printf( "ParseEchoLn()\n" );
+    GetToken(); // Skip keyword echoln
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1782,7 +1770,7 @@ printf( "ParseEchoLn()\n" );
    *  repeat
    */
   void ParseRepeat() {
-printf( "ParseRepeat()\n" );
+    GetToken(); // Skip keyword repeat
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1792,7 +1780,7 @@ printf( "ParseRepeat()\n" );
    *  when CONDITION
    */
   void ParseWhen() {
-printf( "ParseWhen()\n" );
+    GetToken(); // Skip keyword when
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1802,7 +1790,7 @@ printf( "ParseWhen()\n" );
    *  while CONDITION
    */
   void ParseWhile() {
-printf( "ParseWhile()\n" );
+    GetToken(); // Skip keyword while
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1812,7 +1800,7 @@ printf( "ParseWhile()\n" );
    *  endwhile
    */
   void ParseEndWhile() {
-printf( "ParseEndWhile()\n" );
+    GetToken(); // Skip keyword endwhile
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1822,7 +1810,6 @@ printf( "ParseEndWhile()\n" );
    *  IDENT:
    */
   void ParseLabelDecl() {
-printf( "ParseLabelDecl()\n" );
     GetToken(); // Skip label identifier
 
     if( curToken != tkColon ) {
@@ -1841,12 +1828,6 @@ printf( "ParseLabelDecl()\n" );
   void ParseLocalVarBlock() {
     TypeSpec typeSpec;
     unsigned keywordToken;
-
-printf( "ParseLocalVarBlock()\n" );
-    if( retFile == NULL ) {
-      printf( "Error source file not open\n" );
-      exit( errorRetFileNotOpen );
-    }
 
     GetToken(); // Skip keyword var
 
@@ -1884,7 +1865,6 @@ printf( "ParseLocalVarBlock()\n" );
    *  goto LABEL
    */
   void ParseGoto() {
-printf( "ParseGoto()\n" );
     GetToken(); // Skip goto
 
     if( curToken != tkIdent ) { ///TODO: Replace when token table is implemented
@@ -1898,7 +1878,7 @@ printf( "ParseGoto()\n" );
    *  exit( EXPR )
    */
   void ParseExit() {
-printf( "ParseExit()\n" );
+    GetToken(); // Skip keyword exit
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -1907,12 +1887,15 @@ printf( "ParseExit()\n" );
   int ParseFuncStatement() {
     unsigned keywordToken;
 
-printf( "ParseFuncStatement()\n" );
     if( strcmp(curTokenStr, "result") == 0 ) {
+      GetToken(); // Skip keyword result
+
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
 //      return -1;
     } else if( strcmp(curTokenStr, "return") == 0 ) {
+      GetToken(); // Skip keyword return
+
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
 //      return -1;
@@ -1927,7 +1910,6 @@ printf( "ParseFuncStatement()\n" );
   int ParseMethodStatement() {
     unsigned keywordToken;
 
-printf( "ParseMethodStatement()\n" );
     if( strcmp(curTokenStr, "self") == 0 ) {
       printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
       exit( errorPendingImplementation );
@@ -1955,7 +1937,6 @@ printf( "ParseMethodStatement()\n" );
   int ParseStatement() {
     unsigned keywordToken;
 
-printf( "ParseStatement()\n" );
     keywordToken = FindKeyword(curTokenStr);
     switch( keywordToken ) {
     case rsvdBind:
@@ -2041,7 +2022,7 @@ printf( "ParseStatement()\n" );
    *  end
    */
   void ParseFunc() {
-printf( "ParseFunc()\n" );
+    GetToken(); // Skip keyword func
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -2057,7 +2038,7 @@ printf( "ParseFunc()\n" );
    *  end
    */
   void ParseObjectDecl() {
-printf( "ParseObjectDecl()\n" );
+    GetToken(); // Skip keyword object
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -2073,7 +2054,7 @@ printf( "ParseObjectDecl()\n" );
    *  end
    */
   void ParseAbstractDecl() {
-printf( "ParseAbstractDecl()\n" );
+    GetToken(); // Skip keyword abstract
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -2089,7 +2070,7 @@ printf( "ParseAbstractDecl()\n" );
    *  end
    */
   void ParseInterfaceDecl() {
-printf( "ParseInterfaceDecl()\n" );
+    GetToken(); // Skip keyword interface
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -2109,7 +2090,7 @@ printf( "ParseInterfaceDecl()\n" );
    *  end
    */
   void ParseMethod() {
-printf( "ParseMethod()\n" );
+    GetToken(); // Skip keyword method
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -2128,7 +2109,7 @@ printf( "ParseMethod()\n" );
    *  end
    */
   void ParseOperatorFunc() {
-printf( "ParseOperatorFunc()\n" );
+    GetToken(); // Skip keyword operator
 
     printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
     exit( errorPendingImplementation );
@@ -2146,15 +2127,13 @@ printf( "ParseOperatorFunc()\n" );
   void ParseRun() {
     unsigned keywordToken;
 
-printf( "ParseRun()\n" );
     if( runDeclared ) {
       printf( "[L%u,C%u] run is already declared\n", curLine, curColumn );
       exit( runAlreadyDeclared );
     }
     runDeclared = -1;
-    GetToken(); // Skip run
+    GetToken(); // Skip keyword run
 
-printf( "ParseRun() entered\n" );
     if( cFile ) {
       fprintf( cFile, "\nint main( int argc, char* argv[] ) {\n" );
     } else {
@@ -2170,7 +2149,6 @@ printf( "ParseRun() entered\n" );
 
     // Parse run block statements until end of run block
     do {
-printf( "ParseRun() main loop\n" );
       keywordToken = FindKeyword(curTokenStr);
       switch( keywordToken ) {
       case rsvdEnd:
@@ -2190,8 +2168,7 @@ printf( "ParseRun() main loop\n" );
    *  end
    */
   void ParseEndRun() {
-printf( "ParseEndRun()\n" );
-    GetToken(); // Skip end
+    GetToken(); // Skip keyword end
 
     if( cFile ) {
       fprintf( cFile, "  return 0;\n}\n" );
@@ -2210,9 +2187,7 @@ printf( "ParseEndRun()\n" );
     unsigned topLevelExitCode = expectedRunOrTopLevel;
     unsigned keywordToken;
 
-printf( "ParseTopLevel()\n" );
     do {
-printf( "ParseTopLevel() main loop\n" );
       keywordToken = FindKeyword(curTokenStr);
 
       if( keywordToken == rsvdConst ) {
@@ -2300,7 +2275,6 @@ printf( "ParseTopLevel() main loop\n" );
   }
 
   void EndParse() {
-printf( "EndParse()\n" );
     GetToken(); // Skip end
 
     // Finalize C file

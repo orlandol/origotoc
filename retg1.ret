@@ -1,0 +1,283 @@
+
+/*
+ *  Retineo Gen 1 Compiler
+ *  Copyright 2020 Orlando Llanes
+ *
+ *  License: MIT
+ */
+program retg1
+
+/*
+ *  Win32 type declaration section
+ *  Translated by Orlando Llanes from Microsoft Docs:
+ *  https://docs.microsoft.com/en-us/windows/win32/winprog/windows-data-types
+ */
+
+  type uint UINT
+
+  type uint32 DWORD // type uint:32 DWORD
+
+  type BOOL
+
+  type @ PVOID
+  type @ LPVOID
+
+  type PVOID HANDLE
+
+  type /*const*/ cstring LPCSTR
+
+  // https://docs.microsoft.com/en-us/previous-versions/windows/desktop/legacy/aa379560(v=vs.85)
+  struct SECURITY_ATTRUBUTES
+    DWORD nLength,
+    LPVOID lpSecurityDescriptor,
+    BOOL bInheritHandle
+  end
+  type @SECURITY_ATTRIBUTES PSECURITY_ATTRIBUTES
+  type @SECURITY_ATTRIBUTES LPSECURITY_ATTRIBUTES
+
+/*
+ *  Win32 value declaration section
+ */
+
+  /*
+   *  Generic file access flags
+   *  General permissions that map to implementation defined permissions
+   *  https://docs.microsoft.com/en-us/windows/win32/secauthz/generic-access-rights
+   */
+
+  // General read access
+  const DWORD GENERIC_READ = 0b10000000000000000000000000000000
+
+  // General write access
+  const DWORD GENERIC_WRITE = 0b01000000000000000000000000000000
+
+  // General execute access
+  const DWORD GENERIC_EXECUTE = 0b00100000000000000000000000000000
+
+  // All possible general access rights
+  const DWORD GENERIC_ALL = 0b00010000000000000000000000000000
+
+  /*
+   *  Shared access mode flags
+   *  https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
+   */
+  // Allow file delete/rename
+  const DWORD FILE_SHARE_DELETE = 0x00000004
+
+  // Allow subsequent open for read access
+  const DWORD FILE_SHARE_READ = 0x00000001
+
+  // Allow subsequent open for write access
+  const DWORD FILE_SHARE_WRITE = 0x00000002
+
+  /*
+   *  File disposition constants
+   *  Defines actions to take when a file exists, or doesn't
+   *  https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
+   */
+
+  // Creates a new file, always.
+  const DWORD CREATE_ALWAYS = 2
+
+  // Creates a new file, only if it doesn't exist
+  const DWORD CREATE_NEW = 1
+
+  // Always opens a file
+  const DWORD OPEN_ALWAYS = 4
+
+  // Opens a file or device, only if it exists
+  const DWORD OPEN_EXISTING = 3
+
+  // Overwrites to zero bytes, only if it exists and GENERIC_WRITE is specified
+  const DWORD TRUNCATE_EXISTING = 5
+
+  /*
+   *  File flags and attributes
+   *  https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
+   */
+
+  // Mark file as archive to mark file for backup or removal
+  const DWORD FILE_ATTRIBUTE_ARCHIVE = 0x20
+
+  // Encrypt file or directory
+  const DWORD FILE_ATTRIBUTE_ENCRYPTED = 0x4000
+
+  // Mark file as hidden
+  const DWORD FILE_ATTRIBUTE_HIDDEN = 0x2
+
+  // Most common default for files
+  const DWORD FILE_ATTRIBUTE_NORMAL = 0x80
+
+  // File data is physically moved to offline storage
+  const DWORD FILE_ATTRIBUTE_OFFLINE = 0x1000
+
+  // Mark file as read only; can be read from or deleted, but not written to
+  const DWORD FILE_ATTRIBUTE_READONLY = 0x1
+
+  // Mark file as used in part, or exclusively, by an operating system
+  const DWORD FILE_ATTRIBUTE_SYSTEM = 0x4
+
+  // File is used for temporary storage (delete on close?)
+  const DWORD FILE_ATTRIBUTE_TEMPORARY = 0x100
+
+  // File is being opened or created for a backup or restore operation
+  const DWORD FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+
+  // File is to be deleted immediately after all of its handles are closed
+  const DWORD FILE_FLAG_DELETE_ON_CLOSE = 0x04000000
+
+  // 
+  const DWORD FILE_FLAG_NO_BUFFERING = 0x20000000
+
+/*
+ *  Win32 function import section
+ *  Translated by Orlando Llanes from Microsoft Docs
+ */
+
+  /*
+   *  CreateFileA function (fileapi.h)
+   *  https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
+   */
+  import HANDLE CreateFileA(
+      LPCSTR lpFileName,
+      DWORD dwDesiredAccess, dwSharedMode,
+      LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+      DWORD dwCreationDisposition, dwFlagsAndAttributes,
+      HANDLE hTemplateFile )
+    from "kernel32.dll" as CreateFile
+
+/*
+ *  RTL String object declarations
+ */
+
+  object string
+  immutable
+    @char[] data
+    usize length
+  end
+
+  operator @char = (string sourceString)
+    result = sourceString.data
+  end
+
+/*
+ *  RTL File I/O declarations
+ */
+
+  /* Base file object */
+  object File
+  end
+
+  /* Base file interfaces */
+  interface FileRead implements File
+    method char ReadChar()
+    method ufsize Read( @destBuffer, ufsize bytesToRead )
+  end
+
+  interface FileWrite implements File
+    method bool WriteChar( char sourceChar )
+    method ufsize Write( @sourceBuffer, ufsize bytesToWrite )
+  end
+
+  interface File inherits FileNoRead, FileNoWrite
+    method Close()
+
+    method ufsize Position()
+    method bool Seek( ufsize newPosition )
+    method bool SeekFwd( ufsize byAmount )
+    method bool SeekRev( ufsize byAmount )
+  end
+
+  abstract FileRead inherits interface.FileRead
+  end
+
+  abstract FileWrite inherits interface.FileWrite
+  end
+
+  abstract File inherits interface.File
+    method Close()
+  end
+
+  /* Disk file I/O object */
+  object DiskFile inherits DiskFileRead, DiskFileWrite
+    method bool Open( string fileName )
+    method bool Modify( string fileName )
+    method bool Create( string fileName )
+  end
+
+  /* Disk file I/O interfaces */
+  interface DiskFileNoRead implements DiskFile inherits FileRead
+  end
+
+  interface DiskFileRead implements DiskFile inherits FileRead
+  end
+
+  interface DiskFileNoWrite implements DiskFile inherits FileWrite
+  end
+
+  interface DiskFileWrite implements DiskFile inherits FileWrite
+  end
+
+run
+end
+
+/*
+ *  Implementation section
+ */
+
+/*
+ *  RTL File I/O implementation
+ */
+
+  /* Disk file I/O implementation declarations
+  object DiskFile
+    HANDLE handle
+  end
+
+  /* Disk file I/O methods */
+  method DiskFile.Close()
+  end
+
+  method bool DiskFile.Modify( string fileName )
+    return false
+  end
+
+  method bool DiskFile.Create( string fileName )
+    return false
+  end
+
+  method bool DiskFile.Open( string fileName )
+    return false
+  end
+
+  method char DiskFile.ReadChar()
+    return 0
+  end
+
+  method ufsize DiskFile.Read( @destBuffer, ufsize bytesToRead )
+    return 0
+  end
+
+  method bool DiskFile.WriteChar( char sourceChar )
+    return false
+  end
+
+  method ufsize DiskFile.Write( @sourceBuffer, ufsize bytesToWrite )
+    return 0
+  end
+
+  method ufsize DiskFile.Position()
+    return 0
+  end
+
+  method bool DiskFile.Seek( ufsize newPosition )
+    return false
+  end
+
+  method bool DiskFile.SeekFwd( ufsize byAmount )
+    return false
+  end
+
+  method bool DiskFile.SeekRev( ufsize byAmount )
+    return false
+  end
