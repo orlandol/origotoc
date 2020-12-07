@@ -9,18 +9,21 @@ program retg1
 
 /*
  *  Win32 type declaration section
- *  Translated by Orlando Llanes from Microsoft Docs:
  *  https://docs.microsoft.com/en-us/windows/win32/winprog/windows-data-types
  */
 
   type uint UINT
 
   type uint32 DWORD // type uint:32 DWORD
+  type @DWORD LPDWORD
 
-  type BOOL
+  const int FALSE 0
+  const int TRUE 1
+  type int BOOL
 
   type @ PVOID
   type @ LPVOID
+  type /*const*/ @ LPCVOID
 
   type PVOID HANDLE
 
@@ -34,6 +37,22 @@ program retg1
   end
   type @SECURITY_ATTRIBUTES PSECURITY_ATTRIBUTES
   type @SECURITY_ATTRIBUTES LPSECURITY_ATTRIBUTES
+
+  // OVERLAPPED structure (minwinbase.h)
+  // https://docs.microsoft.com/en-us/windows/win32/api/minwinbase/ns-minwinbase-overlapped
+  struct OVERLAPPED
+    ULONG_PTR Internal
+    ULONG_PTR InternalHigh
+    union
+      struct
+        DWORD Offset
+        DWORD OffsetHigh
+      end
+      PVOID Pointer
+    end
+    HANDLE hEvent
+  end
+  type @OVERLAPPED LPOVERLAPPED
 
 /*
  *  Win32 value declaration section
@@ -96,42 +115,17 @@ program retg1
    *  https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilea
    */
 
-  // Mark file as archive to mark file for backup or removal
-  const DWORD FILE_ATTRIBUTE_ARCHIVE = 0x20
-
-  // Encrypt file or directory
-  const DWORD FILE_ATTRIBUTE_ENCRYPTED = 0x4000
-
-  // Mark file as hidden
-  const DWORD FILE_ATTRIBUTE_HIDDEN = 0x2
-
   // Most common default for files
   const DWORD FILE_ATTRIBUTE_NORMAL = 0x80
-
-  // File data is physically moved to offline storage
-  const DWORD FILE_ATTRIBUTE_OFFLINE = 0x1000
-
-  // Mark file as read only; can be read from or deleted, but not written to
-  const DWORD FILE_ATTRIBUTE_READONLY = 0x1
-
-  // Mark file as used in part, or exclusively, by an operating system
-  const DWORD FILE_ATTRIBUTE_SYSTEM = 0x4
 
   // File is used for temporary storage (delete on close?)
   const DWORD FILE_ATTRIBUTE_TEMPORARY = 0x100
 
-  // File is being opened or created for a backup or restore operation
-  const DWORD FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
-
   // File is to be deleted immediately after all of its handles are closed
   const DWORD FILE_FLAG_DELETE_ON_CLOSE = 0x04000000
 
-  // 
-  const DWORD FILE_FLAG_NO_BUFFERING = 0x20000000
-
 /*
  *  Win32 function import section
- *  Translated by Orlando Llanes from Microsoft Docs
  */
 
   /*
@@ -146,18 +140,87 @@ program retg1
       HANDLE hTemplateFile )
     from "kernel32.dll" as CreateFile
 
+  /*
+   *  ReadFile function (fileapi.h)
+   *  https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile
+   */
+  import BOOL ReadFile( HANDLE hFile, LPVOID lpBuffer,
+      DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead,
+      LPOVERLAPPED lpOverlapped )
+    from "kernel32.dll"
+
+  /*
+   *  WriteFile function (fileapi.h)
+   *  https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-writefile
+   */
+  import BOOL WriteFile( HANDLE hFile, LPCVOID lpBuffer,
+      DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten,
+      LPOVERLAPPED lpOverlapped )
+    from "kernel32.dll"
+
+  /*
+   *  CloseHandle function (handleapi.h)
+   *  https://docs.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle
+   */
+  import BOOL CloseHandle( HANDLE hObject )
+    from "kernel32.dll"
+
 /*
  *  RTL String object declarations
  */
 
   object string
-  immutable
-    @char[] data
+  internal
     usize length
+    char[length] data
   end
 
-  operator @char = (string sourceString)
-    result = sourceString.data
+  cast char from string stringObj[ usize index ] implements string
+    return stringObj.data[index]
+  end
+
+  operator < ( string leftStr, rightStr ) implements string
+    var
+      usize maxLen
+      usize index
+    end
+
+    maxLen = leftStr.length
+    if rightStr.length < maxLen
+      then maxLen = rightStr.length
+
+    if maxLen
+      for index = 0 to (maxLen - 1)
+        if leftStr.data[index] != rightStr.data[index]
+          then break
+      endfor
+
+      return (leftStr.data[index] < rightStr.data[index])
+    endif
+
+    return false
+  end
+
+  func int Compare( string leftStr, rightStr ) implements string
+    var
+      usize maxLen
+      usize index
+    end
+
+    maxLen = leftStr.length
+    if rightStr.length < maxLen
+      then maxLen = rightStr.length
+
+    if maxLen
+      for index = 0 to (maxLen - 1)
+        if leftStr.data[index] != rightStr.data[index]
+          then break
+      endfor
+
+      return (leftStr.data[index] - rightStr.data[index])
+    endif
+
+    return -1
   end
 
 /*
@@ -236,18 +299,34 @@ end
 
   /* Disk file I/O methods */
   method DiskFile.Close()
+    if @handle
+      CloseHandle( handle )
+      @handle = @null
+    endif
   end
 
   method bool DiskFile.Modify( string fileName )
-    return false
+    if @fileName && fileName[0]
+      handle = CreateFile( fileName, GENERIC_WRITE,
+          0, @null, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, @null )
+    endif
+    return @handle != @null
   end
 
   method bool DiskFile.Create( string fileName )
-    return false
+    if @fileName && fileName[0]
+      handle = CreateFile( fileName, GENERIC_WRITE,
+          0, @null, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, @null )
+    endif
+    return @handle != @null
   end
 
   method bool DiskFile.Open( string fileName )
-    return false
+    if @fileName && fileName[0]
+      handle = CreateFile( fileName, GENERIC_READ, 0, @null,
+          OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, @null )
+    endif
+    return @handle != @null
   end
 
   method char DiskFile.ReadChar()
