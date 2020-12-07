@@ -1434,6 +1434,8 @@ printf( "ParseCondition() main loop: ++/-- left operand\n" );
           printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
           exit( expectedVariable );
         }
+printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
+exit( errorPendingImplementation );
         GetToken(); // Skip pre-increment/decrement operator
 
       case tkIdent: // Change when token table is implemented
@@ -1475,6 +1477,8 @@ printf( "ParseCondition() main loop: left operand array index ??? curTokenStr ==
         case opPostInc:
         case opPostDec:
 printf( "ParseCondition() main loop: left operand --/++\n" );
+printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
+exit( errorPendingImplementation );
           GetToken(); // Skip post-increment/decrement operator
           break;
         }
@@ -1563,6 +1567,8 @@ printf( "ParseCondition() main loop: operator ??? curTokenStr == %s; curToken ==
               printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
               exit( expectedVariable );
             }
+printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
+exit( errorPendingImplementation );
             GetToken(); // Skip pre-increment/decrement operator
 
         case tkIdent: // Change when token table is implemented
@@ -1598,6 +1604,8 @@ printf( "ParseCondition() main loop: operator ??? curTokenStr == %s; curToken ==
           switch( curToken ) {
           case opPostInc:
           case opPostDec:
+printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
+exit( errorPendingImplementation );
             GetToken(); // Skip post-increment/decrement operator
             break;
           }

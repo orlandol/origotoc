@@ -179,29 +179,7 @@ program retg1
     return stringObj.data[index]
   end
 
-  operator < ( string leftStr, rightStr ) implements string
-    var
-      usize maxLen
-      usize index
-    end
-
-    maxLen = leftStr.length
-    if rightStr.length < maxLen
-      then maxLen = rightStr.length
-
-    if maxLen
-      for index = 0 to (maxLen - 1)
-        if leftStr.data[index] != rightStr.data[index]
-          then break
-      endfor
-
-      return (leftStr.data[index] < rightStr.data[index])
-    endif
-
-    return false
-  end
-
-  func int Compare( string leftStr, rightStr ) implements string
+  func int strCompare( string leftStr, rightStr ) implements string
     var
       usize maxLen
       usize index
@@ -221,6 +199,49 @@ program retg1
     endif
 
     return -1
+  end
+
+  operator < ( string leftStr, rightStr ) implements string
+    return strCompare(leftStr, rightStr) < 0
+  end
+
+  operator <= ( string leftStr, rightStr ) implements string
+    return strCompare(leftStr, rightStr) <= 0
+  end
+
+  operator > ( string leftStr, rightStr ) implements string
+    return strCompare(leftStr, rightStr) > 0
+  end
+
+  operator >= ( string leftStr, rightStr ) implements string
+    return strCompare(leftStr, rightStr) >= 0
+  end
+
+  operator == ( string leftStr, rightStr ) implements string
+    return strCompare(leftStr, rightStr) == 0
+  end
+
+  operator != ( string leftStr, rightStr ) implements string
+    return strCompare(leftStr, rightStr) != 0
+  end
+
+  func string strAppend( string leftStr, rightStr ) implements string
+    var
+      @char[] newStr
+      usize newLen
+    end
+
+    newLen = leftStr.length + rightStr.length
+
+    newStr = realloc(result.data, (leftStr.length + rightStr.length) + 1)
+    if @newStr == @null
+      then return ""
+
+    newStr.data[0..(leftStr.length-1)] = leftStr.data
+    newStr.data[leftStr.length] = rightStr.data
+    newStr.data[newLen] = 0
+
+    return newStr
   end
 
 /*
