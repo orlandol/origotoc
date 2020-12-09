@@ -166,17 +166,29 @@ program retg1
     from "kernel32.dll"
 
 /*
+ *  RTL Math declarations
+ */
+
+  func uint min( uint leftValue, rightValue )
+    result = leftValue
+    if leftValue > rightValue
+      result = rightValue
+  end
+
+  func uint max( uint leftValue, rightValue )
+    result = leftValue
+    if leftValue < rightValue
+      result = rightValue
+  end
+
+/*
  *  RTL String object declarations
  */
 
   object string
   internal
+    @char[] opaque:rw data
     usize length
-    char[length] data
-  end
-
-  cast char from string stringObj[ usize index ] implements string
-    return stringObj.data[index]
   end
 
   func int strCompare( string leftStr, rightStr ) implements string
@@ -185,9 +197,7 @@ program retg1
       usize index
     end
 
-    maxLen = leftStr.length
-    if rightStr.length < maxLen
-      then maxLen = rightStr.length
+    maxLen = min(leftStr.length, rightStr.length)
 
     if maxLen
       for index = 0 to (maxLen - 1)
