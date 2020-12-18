@@ -12,7 +12,8 @@
 
   unsigned testExpr[] = {
     tkUnary, tkUnary, tkValue,
-    tkOperator, tkUnary, tkOpenParen, tkUnary, tkValue, tkCloseParen
+    tkOperator, tkUnary, tkOpenParen, tkUnary, tkValue, tkCloseParen,
+    tkOperator, tkValue
   };
   size_t testIndex = 0;
   size_t testIndexMax = sizeof(testExpr) / sizeof(testExpr[0]);

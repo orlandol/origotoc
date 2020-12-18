@@ -50,7 +50,7 @@ run
 L1:
   goto L1
 
-  if -1 < v21
+  if -1 < v21 && v21 < 1024 + 1234
     then goto L1
 
   if v21 == v1[0]

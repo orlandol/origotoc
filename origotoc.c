@@ -1629,12 +1629,23 @@ exit( errorPendingImplementation );
             GetToken(); // Skip post-increment/decrement operator
             break;
           }
-          break;
+          if( curToken == tkRParen ) {
+            // Delegate continue to RParen case
+            break;
+          }
+          // Otherwise skip default loop break
+          continue;
 
         case valUint:
 printf( "ParseCondition() main loop: next operand curTokenVal.valUint == %u\n", curTokenVal.valUint );
           GetToken(); // Skip uint value
-          break;
+
+          if( curToken == tkRParen ) {
+            // Delegate continue to RParen case
+            break;
+          }
+          // Otherwise skip default loop break
+          continue;
 
         default:
 printf( "ParseCondition() main loop: next operand ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
@@ -1644,20 +1655,21 @@ printf( "ParseCondition() main loop: next operand ??? curTokenStr == %s; curToke
       }
 
       // Parse closing parenthesis
-      while( curToken == tkRParen ) {
+      if( curToken == tkRParen ) {
+        while( curToken == tkRParen ) {
 printf( "ParseCondition() main loop: next closing parenthesis (\n" );
-        if( parenLevel == 0 ) {
-          printf( "[L%u,C%u] Parenthesis closed ) without an opening parenthesis (\n", curLine, curColumn );
-          exit( expectedRightParenthesis );
+          if( parenLevel == 0 ) {
+            printf( "[L%u,C%u] Parenthesis closed ) without an opening parenthesis (\n", curLine, curColumn );
+            exit( expectedRightParenthesis );
+          }
+          parenLevel--;
+          GetToken(); // Skip close parenthesis )
         }
-        parenLevel--;
-        GetToken(); // Skip close parenthesis )
+        continue;
       }
 
-      break;
-//      printf( "ParseCondition() breakpoint: curTokenStr == %s; curToken == %u; nextTokenStr == %s; nextToken == %u\n", curTokenStr, curToken, nextTokenStr, nextToken );
-//      exit( 255 );
-    } while( curToken );
+      // Default loop break indicating end of condition
+    } while( curToken && ((curToken >= firstOper) && (curToken <= lastOper)) );
   }
 
   /*
