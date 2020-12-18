@@ -211,27 +211,27 @@ program retg1
     return -1
   end
 
-  operator < ( string leftStr, rightStr ) implements string
+  operator bool < ( string leftStr, rightStr ) implements string
     return strCompare(leftStr, rightStr) < 0
   end
 
-  operator <= ( string leftStr, rightStr ) implements string
+  operator bool <= ( string leftStr, rightStr ) implements string
     return strCompare(leftStr, rightStr) <= 0
   end
 
-  operator > ( string leftStr, rightStr ) implements string
+  operator bool > ( string leftStr, rightStr ) implements string
     return strCompare(leftStr, rightStr) > 0
   end
 
-  operator >= ( string leftStr, rightStr ) implements string
+  operator bool >= ( string leftStr, rightStr ) implements string
     return strCompare(leftStr, rightStr) >= 0
   end
 
-  operator == ( string leftStr, rightStr ) implements string
+  operator bool == ( string leftStr, rightStr ) implements string
     return strCompare(leftStr, rightStr) == 0
   end
 
-  operator != ( string leftStr, rightStr ) implements string
+  operator bool != ( string leftStr, rightStr ) implements string
     return strCompare(leftStr, rightStr) != 0
   end
 
@@ -245,7 +245,7 @@ program retg1
 
     newStr = realloc(result.data, (leftStr.length + rightStr.length) + 1)
     if @newStr == @null
-      then return ""
+      then return result
 
     newStr.data[0..(leftStr.length-1)] = leftStr.data
     newStr.data[leftStr.length] = rightStr.data

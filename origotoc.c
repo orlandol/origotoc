@@ -1387,115 +1387,127 @@ if( curToken != tkIdent ) { // Temporary line until token table is implemented
     unsigned parenLevel = 0;
 
 printf( "ParseCondition()\n" );
+    // Parse first unary operators, and/or open parentheses
     do {
-      // Parse left unary operator, or open parenthesis
-      do {
-        switch( curToken ) {
-        case tkLParen:
-printf( "ParseCondition() main loop: left open parenthesis (\n" );
-          if( parenLevel == ((unsigned)-1) ) {
-            printf( "[L%u,C%u] Parenthesis nested too deep\n", curLine, curColumn );
-            exit( errorParenNestedTooDeep );
-          }
-          parenLevel++;
-          GetToken(); // Skip open parenthesis (
-          continue;
-
-        case opSub:
-printf( "ParseCondition() main loop: left unary -\n" );
-          GetToken(); // Skip unary negate operator (-)
-          continue;
-
-        case opAdd:
-printf( "ParseCondition() main loop: left unary +\n" );
-          GetToken(); // Skip unary positive operator (+)
-          continue;
-
-        case unaryNot:
-printf( "ParseCondition() main loop: left unary ~\n" );
-          GetToken(); // Skip bitwise unary not operator (~)
-          continue;
-
-        case unaryIsNot:
-printf( "ParseCondition() main loop: left unary !\n" );
-          GetToken(); // Skip boolean unary not operator (!)
-          continue;
+      switch( curToken ) {
+      case tkLParen:
+printf( "ParseCondition() main loop: first open parenthesis (\n" );
+        if( parenLevel == ((unsigned)-1) ) {
+          printf( "[L%u,C%u] Parenthesis nested too deep\n", curLine, curColumn );
+          exit( errorParenNestedTooDeep );
         }
-        break;
-      } while( curToken );
+        parenLevel++;
+        GetToken(); // Skip open parenthesis (
+        continue;
 
-      // Parse left operand
+      case opSub:
+printf( "ParseCondition() main loop: first unary -\n" );
+        GetToken(); // Skip unary negate operator (-)
+        continue;
+
+      case opAdd:
+printf( "ParseCondition() main loop: first unary +\n" );
+        GetToken(); // Skip unary positive operator (+)
+        continue;
+
+      case unaryNot:
+printf( "ParseCondition() main loop: first unary ~\n" );
+        GetToken(); // Skip bitwise unary not operator (~)
+        continue;
+
+      case unaryIsNot:
+printf( "ParseCondition() main loop: first unary !\n" );
+        GetToken(); // Skip boolean unary not operator (!)
+        continue;
+      }
+      break;
+    } while( curToken );
+
+      // Parse first operand
+    switch( curToken ) {
+    case opPostInc:
+    case opPostDec:
+printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
+exit( errorPendingImplementation );
+printf( "ParseCondition() main loop: ++/-- first operand\n" );
+      // Parse first pre-increment/decrement operator
+      if( curToken != tkIdent ) { // Change when token table is implemented
+        printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
+        exit( expectedVariable );
+      }
+      GetToken(); // Skip pre-increment/decrement operator
+
+    case tkIdent: // Change when token table is implemented
+printf( "ParseCondition() main loop: first operand curTokenStr == %s\n", curTokenStr );
+      GetToken(); // Skip identifier
+
+      // Temporary - begin parse array dimension
+      if( curToken == tkLBrace ) {
+printf( "ParseCondition() main loop: first operand [\n" );
+        GetToken(); // Skip open brace ([)
+
+        switch( curToken ) { // Parse array index
+        case tkIdent: // Change when token table is implemented
+printf( "ParseCondition() main loop: first operand array index curTokenStr == %s\n", curTokenStr );
+          GetToken(); // Skip array index identifier
+          break;
+
+        case valUint:
+printf( "ParseCondition() main loop: first operand array index curTokenVal.valUint == %u\n", curTokenVal.valUint );
+          GetToken(); // Skip array index value
+          break;
+
+        default:
+printf( "ParseCondition() main loop: first operand array index ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
+          printf( "[L%u,C%u] Unsupported array index\n", curLine, curColumn );
+          exit( errorUnsupportedArrayIndex );
+        }
+
+        if( curToken != tkRBrace ) {
+          printf( "[L%u,C%u] Expected right brace\n", curLine, curColumn );
+          exit( errorUnsupportedArrayIndex );
+        }
+printf( "ParseCondition() main loop: first operand ]\n" );
+        GetToken(); // Skip closing brace (])
+      }
+      // Temporary - end parse array dimension
+
+      // Parse first post-increment/decrement operator
       switch( curToken ) {
       case opPostInc:
       case opPostDec:
-printf( "ParseCondition() main loop: ++/-- left operand\n" );
-        // Parse left pre-increment/decrement operator
-        if( curToken != tkIdent ) { // Change when token table is implemented
-          printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
-          exit( expectedVariable );
-        }
+printf( "ParseCondition() main loop: first operand --/++\n" );
 printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
 exit( errorPendingImplementation );
-        GetToken(); // Skip pre-increment/decrement operator
-
-      case tkIdent: // Change when token table is implemented
-printf( "ParseCondition() main loop: left operand curTokenStr == %s\n", curTokenStr );
-        GetToken(); // Skip identifier
-
-        // Temporary - begin parse array dimension
-        if( curToken == tkLBrace ) {
-printf( "ParseCondition() main loop: left operand [\n" );
-          GetToken(); // Skip open brace ([)
-
-          switch( curToken ) { // Parse array index
-          case tkIdent: // Change when token table is implemented
-printf( "ParseCondition() main loop: left operand array index curTokenStr == %s\n", curTokenStr );
-            GetToken(); // Skip array index identifier
-            break;
-
-          case valUint:
-printf( "ParseCondition() main loop: left operand array index curTokenVal.valUint == %u\n", curTokenVal.valUint );
-            GetToken(); // Skip array index value
-            break;
-
-          default:
-printf( "ParseCondition() main loop: left operand array index ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
-            printf( "[L%u,C%u] Unsupported array index\n", curLine, curColumn );
-            exit( errorUnsupportedArrayIndex );
-          }
-
-          if( curToken != tkRBrace ) {
-            printf( "[L%u,C%u] Expected right brace\n", curLine, curColumn );
-            exit( errorUnsupportedArrayIndex );
-          }
-          GetToken(); // Skip closing brace (])
-        }
-        // Temporary - end parse array dimension
-
-        // Parse left post-increment/decrement operator
-        switch( curToken ) {
-        case opPostInc:
-        case opPostDec:
-printf( "ParseCondition() main loop: left operand --/++\n" );
-printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
-exit( errorPendingImplementation );
-          GetToken(); // Skip post-increment/decrement operator
-          break;
-        }
+        GetToken(); // Skip post-increment/decrement operator
         break;
-
-      case valUint:
-printf( "ParseCondition() main loop: left operand curTokenVal.valUint == %u\n", curTokenVal.valUint );
-        GetToken(); // Skip uint value
-        break;
-
-      default:
-printf( "ParseCondition() main loop: left operand ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
-        printf( "[L%u,C%u] Expected left operand variable or value\n", curLine, curColumn );
-        exit( expectedOperand );
       }
+      break;
 
-      // Parse right subexpression
+    case valUint:
+printf( "ParseCondition() main loop: first operand curTokenVal.valUint == %u\n", curTokenVal.valUint );
+      GetToken(); // Skip uint value
+      break;
+
+    default:
+printf( "ParseCondition() main loop: first operand ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
+      printf( "[L%u,C%u] Expected first operand variable or value\n", curLine, curColumn );
+      exit( expectedOperand );
+    }
+
+    // Parse closing parenthesis
+    while( curToken == tkRParen ) {
+printf( "ParseCondition() main loop: first closing parenthesis (\n" );
+      if( parenLevel == 0 ) {
+        printf( "[L%u,C%u] Parenthesis closed ) without an opening parenthesis (\n", curLine, curColumn );
+        exit( expectedRightParenthesis );
+      }
+      parenLevel--;
+      GetToken(); // Skip close parenthesis )
+    }
+
+    do {
+      // Parse next subexpression
       if( (curToken >= firstOper) && (curToken <= lastOper) ) {
         // Parse operator
         switch( curToken ) {
@@ -1527,10 +1539,11 @@ printf( "ParseCondition() main loop: operator ??? curTokenStr == %s; curToken ==
         }
         GetToken(); // Skip operator
 
-        // Parse right unary
+        // Parse next unary
         do {
           switch( curToken ) {
           case tkLParen:
+printf( "ParseCondition() main loop: next open parenthesis (\n" );
             if( parenLevel == ((unsigned)-1) ) {
               printf( "[L%u,C%u] Parenthesis nested too deep\n", curLine, curColumn );
               exit( errorParenNestedTooDeep );
@@ -1558,52 +1571,59 @@ printf( "ParseCondition() main loop: operator ??? curTokenStr == %s; curToken ==
           break;
         } while( curToken );
 
-        // Parse right operand
+        // Parse next operand
         switch( curToken ) {
           case opPostInc:
           case opPostDec:
-            // Parse right pre-increment/decrement operator
+printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
+exit( errorPendingImplementation );
+            // Parse next pre-increment/decrement operator
             if( curToken != tkIdent ) { // Change when token table is implemented
               printf( "[L%u,C%u] Variable expected\n", curLine, curColumn );
               exit( expectedVariable );
             }
-printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
-exit( errorPendingImplementation );
             GetToken(); // Skip pre-increment/decrement operator
 
         case tkIdent: // Change when token table is implemented
+printf( "ParseCondition() main loop: next operand curTokenStr == %s\n", curTokenStr );
           GetToken(); // Skip identifier
 
           // Temporary - begin parse array dimension
           if( curToken == tkLBrace ) {
+printf( "ParseCondition() main loop: next operand [\n" );
             GetToken(); // Skip open brace ([)
 
             switch( curToken ) { // Parse array index
             case tkIdent: // Change when token table is implemented
+printf( "ParseCondition() main loop: next operand array index curTokenStr == %s\n", curTokenStr );
               GetToken(); // Skip array index identifier
               break;
 
             case valUint:
+printf( "ParseCondition() main loop: next operand array index curTokenVal.valUint == %u\n", curTokenVal.valUint );
               GetToken(); // Skip array index value
               break;
 
             default:
+printf( "ParseCondition() main loop: next operand array index ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
               printf( "[L%u,C%u] Unsupported array index\n", curLine, curColumn );
               exit( errorUnsupportedArrayIndex );
             }
 
             if( curToken != tkRBrace ) {
-              printf( "[L%u,C%u] Expected right brace\n", curLine, curColumn );
+              printf( "[L%u,C%u] Expected next brace\n", curLine, curColumn );
               exit( errorUnsupportedArrayIndex );
             }
+printf( "ParseCondition() main loop: next operand ]\n" );
             GetToken(); // Skip closing brace (])
           }
           // Temporary - end parse array dimension
 
-          // Parse right post-increment/decrement operator
+          // Parse next post-increment/decrement operator
           switch( curToken ) {
           case opPostInc:
           case opPostDec:
+printf( "ParseCondition() main loop: next operand --/++\n" );
 printf( "[L%u,C%u] Operator pending implementation\n", curLine, curColumn );
 exit( errorPendingImplementation );
             GetToken(); // Skip post-increment/decrement operator
@@ -1612,25 +1632,29 @@ exit( errorPendingImplementation );
           break;
 
         case valUint:
+printf( "ParseCondition() main loop: next operand curTokenVal.valUint == %u\n", curTokenVal.valUint );
           GetToken(); // Skip uint value
           break;
 
         default:
-          printf( "[L%u,C%u] Expected left operand variable or value\n", curLine, curColumn );
+printf( "ParseCondition() main loop: next operand ??? curTokenStr == %s; curToken == %u\n", curTokenStr, curToken );
+          printf( "[L%u,C%u] Expected next operand variable or value\n", curLine, curColumn );
           exit( expectedOperand );
         }
       }
 
       // Parse closing parenthesis
       while( curToken == tkRParen ) {
+printf( "ParseCondition() main loop: next closing parenthesis (\n" );
         if( parenLevel == 0 ) {
-          printf( "[L%u,C%u] Parenthesis must be open with ( before closed with )\n", curLine, curColumn );
+          printf( "[L%u,C%u] Parenthesis closed ) without an opening parenthesis (\n", curLine, curColumn );
           exit( expectedRightParenthesis );
         }
         parenLevel--;
         GetToken(); // Skip close parenthesis )
       }
 
+      break;
 //      printf( "ParseCondition() breakpoint: curTokenStr == %s; curToken == %u; nextTokenStr == %s; nextToken == %u\n", curTokenStr, curToken, nextTokenStr, nextToken );
 //      exit( 255 );
     } while( curToken );
@@ -1696,9 +1720,6 @@ exit( errorPendingImplementation );
    */
   void ParseElse() {
     GetToken(); // Skip keyword else
-
-    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
-    exit( errorPendingImplementation );
   }
 
   /*
@@ -1706,9 +1727,6 @@ exit( errorPendingImplementation );
    */
   void ParseEndIf() {
     GetToken(); // Skip keyword endif
-
-    printf( "[L%u,C%u] Keyword pending implementation\n", curLine, curColumn );
-    exit( errorPendingImplementation );
   }
 
   /*
@@ -2164,7 +2182,7 @@ exit( errorPendingImplementation );
         return;
 
       default:
-        if( ParseStatement() == 0 ) {
+        if( ParseFuncStatement() == 0 ) {
           printf( "[L%u,C%u] Expected end or statement\n", curLine, curColumn );
           exit( expectedEndOrStatement );
         }

@@ -7,3 +7,4 @@ if exist test.exe del test.exe
 if exist dotenum.exe del dotenum.exe
 if exist iface.exe del iface.exe
 if exist import.exe del import.exe
+if exist cond.exe del cond.exe
