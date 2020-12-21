@@ -8,3 +8,4 @@ if exist dotenum.exe del dotenum.exe
 if exist iface.exe del iface.exe
 if exist import.exe del import.exe
 if exist cond.exe del cond.exe
+if exist toktab.exe del toktab.exe
