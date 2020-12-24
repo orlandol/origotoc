@@ -662,8 +662,7 @@ SOFTWARE.
  * ===================================
  */
 
-  #define DECLARE_UINT_KEYARRAY_TYPES(\
-      typeName, dataType )\
+  #define DECLARE_UINT_KEYARRAY_TYPES( typeName, dataType )\
   typedef struct typeName##Item {\
     unsigned key;\
     dataType data;\
@@ -750,7 +749,7 @@ SOFTWARE.
         return 0;\
       }\
       \
-      item = realloc(item, reservedCount * sizeof(listType##Item));\
+      item = (listType##Item*)realloc(item, reservedCount * sizeof(listType##Item));\
       if( item == NULL ) {\
         return 0;\
       }\
