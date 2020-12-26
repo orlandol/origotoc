@@ -1,19 +1,51 @@
 
 #include "keyarray.h"
 
+#include <stdint.h>
 #include <stdio.h>
 
 /* Placeholder declarations */
 
   typedef enum Token {
-    tkVar = 1
+    tkVar = 1,
+    tkConst,
+    tkEnum,
+    tkStruct,
+    tkUnion,
+    tkFunc,
+
+    valUint = 100,
+    valInt,
+    valStruct,
+    valUnion,
+
+    ptrData = 200,
+    ptrRef,
+
+    typeUint = 300,
+    typeInt,
+    typeEnum,
+    typeStruct,
+    typeUnion,
+    typeObject
   } Token;
+
+  typedef enum MemberAccessType {
+    accessImmutable = 0,
+      defaultAccess = accessImmutable,
+    accessMutable = 1,
+    accessInternal = 2
+  } MemberAccessType;
 
   typedef struct TokenVal {
     unsigned valType;
     union {
       unsigned uval;
       int ival;
+      struct {
+        uint8_t* contents;
+        size_t size;
+      } dataval;
     };
   } TokenVal;
 
@@ -21,8 +53,9 @@
   typedef struct TypeSpec {
     unsigned ptrType;
     unsigned baseType;
-    char baseName[1024];
+    unsigned baseTypeID;
     size_t indexCount;
+    size_t typeSize;
   } TypeSpec;
 
   void FreeTypeSpec( TypeSpec* data );
@@ -34,7 +67,6 @@
 
   DECLARE_UINT_KEYARRAY_INSERT( InsertTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_REMOVE( RemoveTypeSpec, TypeTable, FreeTypeSpec )
-
   DECLARE_UINT_KEYARRAY_MODIFY( ModifyTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_RETRIEVE( RetrieveTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_FINDINDEX( IndexOfTypeSpec, TypeTable )
@@ -55,7 +87,6 @@
 
   DECLARE_STRING_KEYARRAY_INSERT( InsertEnumField, EnumFieldTable, EnumField )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveEnumField, EnumFieldTable, FreeEnumField )
-
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyEnumField, EnumFieldTable, EnumField )
   DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveEnumField, EnumFieldTable, EnumField )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfEnumField, EnumFieldTable )
@@ -76,7 +107,6 @@
 
   DECLARE_STRING_KEYARRAY_INSERT( InsertStructField, StructFieldTable, StructField )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveStructField, StructFieldTable, FreeStructField )
-
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyStructField, StructFieldTable, StructField )
   DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveStructField, StructFieldTable, StructField )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfStructField, StructFieldTable )
@@ -97,12 +127,74 @@
 
   DECLARE_STRING_KEYARRAY_INSERT( InsertFuncParam, FuncParamTable, FuncParam )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveFuncParam, FuncParamTable, FreeFuncParam )
-
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyFuncParam, FuncParamTable, FuncParam )
   DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveFuncParam, FuncParamTable, FuncParam )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfFuncParam, FuncParamTable )
 
+/* Identifier name table declarations */
+
+  typedef struct IdentName {
+    unsigned nameIndex;
+  } IdentName;
+
+  void FreeIdentName( IdentName* data );
+
+  DECLARE_STRING_KEYARRAY_TYPES( IdentTable, IdentName )
+
+  DECLARE_STRING_KEYARRAY_CREATE( CreateIdentTable, IdentTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeIdentTable, IdentTable, FreeIdentName )
+
+  DECLARE_STRING_KEYARRAY_INSERT( InsertIdentName, IdentTable, IdentName )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveIdentName, IdentTable, FreeIdentName )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyIdentName, IdentTable, IdentName )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveIdentName, IdentTable, IdentName )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfIdentName, IdentTable )
+
+/* Object member variable table declarations */
+
+  typedef struct MemberVar {
+    unsigned typeID;
+    unsigned accessType;
+    unsigned memberIndex;
+    TokenVal value;
+  } MemberVar;
+
+  void FreeMemberVar( MemberVar* data );
+
+  DECLARE_STRING_KEYARRAY_TYPES( MemberTable, MemberVar )
+
+  DECLARE_STRING_KEYARRAY_CREATE( CreateMemberTable, MemberTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeMemberTable, MemberTable, FreeMemberVar )
+
+  DECLARE_STRING_KEYARRAY_INSERT( InsertMemberVar, MemberTable, MemberVar )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveMemberVar, MemberTable, FreeMemberVar )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyMemberVar, MemberTable, MemberVar )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveMemberVar, MemberTable, MemberVar )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfMemberVar, MemberTable )
+
+/* Method table declarations */
+
+  typedef struct InterfaceMethod {
+    unsigned typeID;
+    unsigned methodIndex;
+    FuncParamTable* params;
+  } InterfaceMethod;
+
+  void FreeInterfaceMethod( InterfaceMethod* data );
+
+  DECLARE_STRING_KEYARRAY_TYPES( MethodTable, InterfaceMethod )
+
+  DECLARE_STRING_KEYARRAY_CREATE( CreateMethodTable, MethodTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeMethodTable, MethodTable, FreeInterfaceMethod )
+
+  DECLARE_STRING_KEYARRAY_INSERT( InsertInterfaceMethod, MethodTable, InterfaceMethod )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveInterfaceMethod, MethodTable, FreeInterfaceMethod )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyInterfaceMethod, MethodTable, InterfaceMethod )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveInterfaceMethod, MethodTable, InterfaceMethod )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfInterfaceMethod, MethodTable )
+
 /* Token table declarations */
+
   typedef struct TokenSym {
     unsigned tokenCode;
 
@@ -146,12 +238,20 @@
       } funcSym;
 
       struct { // object
+        char baseObject[128];
+        MemberTable* members;
       } objectSym;
 
       struct { // abstract
+        char objectName[128];
+        IdentTable* baseInterfaces;
+        MethodTable* methods;
       } abstractSym;
 
       struct { // interface
+        char objectName[128];
+        IdentTable* baseInterfaces;
+        MethodTable* methods;
       } interfaceSym;
 
       struct { // operator
@@ -173,7 +273,8 @@
   DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveTokenSym, TokenTable, TokenSym )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfTokenSym, TokenTable )
 
-  int DeclareVar( TokenTable* destTable, unsigned typeID, char* varName );
+  int DeclareVar( TokenTable* destTable,
+      unsigned typeID, char* varName, TokenVal* initialVal );
 
 /* Global variables */
   TypeTable* typeTable = NULL;
@@ -181,11 +282,44 @@
 
   unsigned newTypeID = 0;
 
+  void PrintMangledName( TypeSpec* typeSpec, char* baseTypeName ) {
+    const char* typeString[] = {
+      "",
+      "u",
+      "i",
+      "e",
+      "s",
+      "u",
+      "o"
+    };
+    char indexHexStr[8] = {};
+
+    if( typeSpec == NULL ) {
+      printf( "typeSpec parameter is NULL\n" );
+      exit(100);
+    }
+
+    sprintf( indexHexStr, "%0.8x", typeSpec->indexCount );
+
+    printf( "%s%s%s%s",
+      typeSpec->ptrType == ptrData ? "p" : typeSpec->ptrType == ptrRef ? "r" : "",
+      (typeSpec->baseType - typeUint + 1) <= (typeObject - typeUint + 1) ? typeString[typeSpec->baseType - typeUint + 1] : "",
+      ((typeSpec->baseType - typeEnum + 1) <= (typeObject - typeEnum + 1)) && baseTypeName ? baseTypeName : "",
+      typeSpec->indexCount ? indexHexStr : ""
+    );
+  }
+
 int main( int argc, char* argv[] ) {
   typeTable = CreateTypeTable(0);
   tokenTable = CreateTokenTable(0);
 
-  if( DeclareVar(tokenTable, newTypeID, "foo") == 0 ) {
+  TypeSpec typeSpec = {ptrData, typeObject, 0, 0, 16};
+  PrintMangledName( &typeSpec, "Foo" );
+  printf( "_Assign_" );
+  PrintMangledName( &typeSpec, "Foo" );
+  printf( "\n" );
+
+  if( DeclareVar(tokenTable, newTypeID, "foo", NULL) == 0 ) {
     printf( "Unable to add var 'foo'\n" );
     exit(1);
   }
@@ -216,12 +350,28 @@ int main( int argc, char* argv[] ) {
   void FreeFuncParam( FuncParam* data ) {
   }
 
+/* Object member variable table declarations */
+
+  void FreeMemberVar( MemberVar* data ) {
+  }
+
+/* Identifier name table implementation */
+
+  void FreeIdentName( IdentName* data ) {
+  }
+
+/* Method table implementation */
+
+  void FreeInterfaceMethod( InterfaceMethod* data ) {
+  }
+
 /* Token Table implementation */
 
   void FreeTokenSym( TokenSym* data ) {
   }
 
-  int DeclareVar( TokenTable* destTable, unsigned typeID, char* varName ) {
+  int DeclareVar( TokenTable* destTable,
+      unsigned typeID, char* varName, TokenVal* initialVal ) {
     TokenSym sym = {};
 
     if( !(destTable && typeID && varName) ) {
