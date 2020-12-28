@@ -50,12 +50,12 @@
   } TokenVal;
 
 /* Type table declarations */
+
   typedef struct TypeSpec {
+    char typeName[64];
     unsigned ptrType;
     unsigned baseType;
-    unsigned baseTypeID;
     size_t indexCount;
-    size_t typeSize;
   } TypeSpec;
 
   void FreeTypeSpec( TypeSpec* data );
@@ -70,6 +70,8 @@
   DECLARE_UINT_KEYARRAY_MODIFY( ModifyTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_RETRIEVE( RetrieveTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_FINDINDEX( IndexOfTypeSpec, TypeTable )
+
+  int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize );
 
 /* Enum field table declarations */
 
@@ -255,6 +257,7 @@
       } interfaceSym;
 
       struct { // operator
+        FuncParamTable* operParams;
       } operatorSym;
     };
   } TokenSym;
@@ -277,47 +280,20 @@
       unsigned typeID, char* varName, TokenVal* initialVal );
 
 /* Global variables */
+
   TypeTable* typeTable = NULL;
   TokenTable* tokenTable = NULL;
 
   unsigned newTypeID = 0;
 
-  void PrintMangledName( TypeSpec* typeSpec, char* baseTypeName ) {
-    const char* typeString[] = {
-      "",
-      "u",
-      "i",
-      "e",
-      "s",
-      "u",
-      "o"
-    };
-    char indexHexStr[8] = {};
-
-    if( typeSpec == NULL ) {
-      printf( "typeSpec parameter is NULL\n" );
-      exit(100);
-    }
-
-    sprintf( indexHexStr, "%0.8x", typeSpec->indexCount );
-
-    printf( "%s%s%s%s",
-      typeSpec->ptrType == ptrData ? "p" : typeSpec->ptrType == ptrRef ? "r" : "",
-      (typeSpec->baseType - typeUint + 1) <= (typeObject - typeUint + 1) ? typeString[typeSpec->baseType - typeUint + 1] : "",
-      ((typeSpec->baseType - typeEnum + 1) <= (typeObject - typeEnum + 1)) && baseTypeName ? baseTypeName : "",
-      typeSpec->indexCount ? indexHexStr : ""
-    );
-  }
-
 int main( int argc, char* argv[] ) {
   typeTable = CreateTypeTable(0);
   tokenTable = CreateTokenTable(0);
 
-  TypeSpec typeSpec = {ptrData, typeObject, 0, 0, 16};
-  PrintMangledName( &typeSpec, "Foo" );
-  printf( "_Assign_" );
-  PrintMangledName( &typeSpec, "Foo" );
-  printf( "\n" );
+  TypeSpec typeSpec = {"Foo", ptrData, typeStruct, 1000};
+  char fooMangled[2048] = {};
+  MangleName( &typeSpec, fooMangled, sizeof(fooMangled) - 1 );
+  printf( "%s\n", fooMangled );
 
   if( DeclareVar(tokenTable, newTypeID, "foo", NULL) == 0 ) {
     printf( "Unable to add var 'foo'\n" );
@@ -333,6 +309,33 @@ int main( int argc, char* argv[] ) {
 /* Type table implementation */
 
   void FreeTypeSpec( TypeSpec* data ) {
+  }
+
+  int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize ) {
+    static const char* typeString[] = { "", "u", "i", "e", "s", "u", "o" };
+    char indexHexStr[16] = {};
+    char mangledResult[256] = {};
+    int mangledLength;
+
+    if( !(typeSpec && destBuffer && destSize) ) {
+      return 0;
+    }
+
+    snprintf( indexHexStr, sizeof(indexHexStr) - 1, "a%0.8x", typeSpec->indexCount );
+
+    mangledLength = snprintf( mangledResult, sizeof(mangledResult) - 1, "%s%s%s%s",
+      typeSpec->ptrType == ptrData ? "p" : typeSpec->ptrType == ptrRef ? "r" : "",
+      (typeSpec->baseType - typeUint + 1) <= (typeObject - typeUint + 1) ? typeString[typeSpec->baseType - typeUint + 1] : "",
+      (typeSpec->baseType - typeEnum + 1) <= (typeObject - typeEnum + 1) ? typeSpec->typeName : "",
+      typeSpec->indexCount ? indexHexStr : ""
+    );
+
+    if( (mangledLength > 0) && (mangledLength < destSize) ) {
+      memcpy( destBuffer, mangledResult, mangledLength + 1 );
+      return -1;
+    }
+
+    return 0;
   }
 
 /* Enum field table implementation */
