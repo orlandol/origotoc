@@ -7,17 +7,24 @@
 /* Placeholder declarations */
 
   typedef enum Token {
-    tkVar = 1,
-    tkConst,
+    tkConst = 1,
     tkEnum,
     tkStruct,
     tkUnion,
+    tkType,
+    tkVar,
+    tkImport,
     tkFunc,
+    tkObject,
+    tkAbstract,
+    tkInterface,
+    tkOperator,
 
     valUint = 100,
     valInt,
     valStruct,
     valUnion,
+    valData,
 
     ptrData = 200,
     ptrRef,
@@ -42,10 +49,6 @@
     union {
       unsigned uval;
       int ival;
-      struct {
-        uint8_t* contents;
-        size_t size;
-      } dataval;
     };
   } TokenVal;
 
@@ -70,6 +73,9 @@
   DECLARE_UINT_KEYARRAY_MODIFY( ModifyTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_RETRIEVE( RetrieveTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_FINDINDEX( IndexOfTypeSpec, TypeTable )
+
+  int CopyTokenVal( TokenVal* source, TokenVal* dest );
+  void FreeTokenVal( TokenVal* tokenVal );
 
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize );
 
@@ -104,8 +110,8 @@
 
   DECLARE_STRING_KEYARRAY_TYPES( StructFieldTable, StructField )
 
-  DECLARE_STRING_KEYARRAY_CREATE( CreateStructTable, StructFieldTable )
-  DECLARE_STRING_KEYARRAY_FREE( FreeStructTable, StructFieldTable, FreeStructField )
+  DECLARE_STRING_KEYARRAY_CREATE( CreateStructFieldTable, StructFieldTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeStructFieldTable, StructFieldTable, FreeStructField )
 
   DECLARE_STRING_KEYARRAY_INSERT( InsertStructField, StructFieldTable, StructField )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveStructField, StructFieldTable, FreeStructField )
@@ -197,68 +203,78 @@
 
 /* Token table declarations */
 
+  typedef struct ConstSym { // const
+     unsigned typeID;
+   } ConstSym;
+ 
+   typedef struct EnumSym { // enum
+     unsigned typeID;
+     EnumFieldTable* fields;
+   } EnumSym;
+ 
+   typedef struct StructSym { // struct
+     StructFieldTable* fields;
+   } StructSym;
+ 
+   typedef struct UnionSym { // union
+     StructFieldTable* fields;
+   } UnionSym;
+ 
+  typedef struct TypeSym { // type
+    unsigned typeID;
+  } TypeSym;
+
+  typedef struct VarSym { // var
+    unsigned typeID;
+  } VarSym;
+
+  typedef struct { // import
+    unsigned typeID;
+    FuncParamTable* funcParams;
+  } ImportSym;
+
+  typedef struct { // func
+    unsigned typeID;
+    FuncParamTable* funcParams;
+  } FuncSym;
+
+  typedef struct { // object
+    char baseObject[128];
+    MemberTable* members;
+  } ObjectSym;
+
+  typedef struct { // abstract
+    char objectName[128];
+    IdentTable* baseInterfaces;
+    MethodTable* methods;
+  } AbstractSym;
+
+  typedef struct { // interface
+    char objectName[128];
+    IdentTable* baseInterfaces;
+    MethodTable* methods;
+  } InterfaceSym;
+
+  typedef struct { // operator
+    FuncParamTable* operParams;
+  } OperatorSym;
+
   typedef struct TokenSym {
     unsigned tokenCode;
 
     union {
-      struct { // const
-        unsigned typeID;
-        TokenVal value;
-      } constSym;
-
-      struct { // enum
-        unsigned typeID;
-        EnumFieldTable* fields;
-      } enumSym;
-
-      struct { // struct
-        StructFieldTable* fields;
-      } structSym;
-
-      struct { // union
-        StructFieldTable* fields;
-      } unionSym;
-
-      struct { // type
-        unsigned typeID;
-        TokenVal defaultValue;
-      } typeSym;
-
-      struct { // var
-        unsigned typeID;
-        TokenVal initialValue;
-      } varSym;
-
-      struct { // import
-        unsigned typeID;
-        FuncParamTable* funcParams;
-      } importSym;
-
-      struct { // func
-        unsigned typeID;
-        FuncParamTable* funcParams;
-      } funcSym;
-
-      struct { // object
-        char baseObject[128];
-        MemberTable* members;
-      } objectSym;
-
-      struct { // abstract
-        char objectName[128];
-        IdentTable* baseInterfaces;
-        MethodTable* methods;
-      } abstractSym;
-
-      struct { // interface
-        char objectName[128];
-        IdentTable* baseInterfaces;
-        MethodTable* methods;
-      } interfaceSym;
-
-      struct { // operator
-        FuncParamTable* operParams;
-      } operatorSym;
+      ConstSym constSym;
+      EnumSym enumSym;
+      StructSym structSym;
+      UnionSym unionSym;
+      TypeSym typeSym;
+      VarSym varSym;
+      ImportSym importSym;
+      FuncSym funcSym;
+      ObjectSym objectSym;
+      AbstractSym abstractSym;
+      InterfaceSym interfaceSym;
+      OperatorSym operatorSym;
     };
   } TokenSym;
 
@@ -276,15 +292,16 @@
   DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveTokenSym, TokenTable, TokenSym )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfTokenSym, TokenTable )
 
-  int DeclareVar( TokenTable* destTable,
-      unsigned typeID, char* varName, TokenVal* initialVal );
+  int DeclareVar( TokenTable* destTable, unsigned typeID, char* varName );
+
+  int LookupVar( TokenTable* sourceTable, char* varName, VarSym* destSym );
 
 /* Global variables */
 
   TypeTable* typeTable = NULL;
   TokenTable* tokenTable = NULL;
 
-  unsigned newTypeID = 0;
+  unsigned newTypeID = 1111;
 
 int main( int argc, char* argv[] ) {
   typeTable = CreateTypeTable(0);
@@ -295,10 +312,22 @@ int main( int argc, char* argv[] ) {
   MangleName( &typeSpec, fooMangled, sizeof(fooMangled) - 1 );
   printf( "%s\n", fooMangled );
 
-  if( DeclareVar(tokenTable, newTypeID, "foo", NULL) == 0 ) {
+  if( InsertTypeSpec(typeTable, newTypeID, &typeSpec) == 0 ) {
+    printf( "Unable to add typeIP [%u]\n", newTypeID );
+    exit(1);
+  }
+
+  if( DeclareVar(tokenTable, newTypeID, "foo") == 0 ) {
     printf( "Unable to add var 'foo'\n" );
     exit(1);
   }
+
+  VarSym varSym = {};
+  if( LookupVar(tokenTable, "foo", &varSym) == 0 ) {
+    printf( "Unable to look up symbol 'foo'\n" );
+    exit(2);
+  }
+  printf( "'foo'.typeID == %u\n", varSym.typeID );
 
   FreeTypeTable( &typeTable );
   FreeTokenTable( &tokenTable );
@@ -366,15 +395,60 @@ int main( int argc, char* argv[] ) {
 /* Method table implementation */
 
   void FreeInterfaceMethod( InterfaceMethod* data ) {
+    if( data ) {
+      FreeFuncParamTable( &data->params );
+    }
   }
 
 /* Token Table implementation */
 
   void FreeTokenSym( TokenSym* data ) {
+    if( data == NULL ) {
+      return;
+    }
+
+    switch( data->tokenCode ) {
+    case tkEnum:
+      FreeEnumTable( &data->enumSym.fields );
+      break;
+
+    case tkStruct:
+      FreeStructFieldTable( &data->structSym.fields );
+      break;
+
+    case tkUnion:
+      FreeStructFieldTable( &data->unionSym.fields );
+      break;
+
+    case tkImport:
+      FreeFuncParamTable( &data->importSym.funcParams );
+      break;
+
+    case tkFunc:
+      FreeFuncParamTable( &data->funcSym.funcParams );
+      break;
+
+    case tkObject:
+      FreeMemberTable( &data->objectSym.members );
+      break;
+
+    case tkAbstract:
+      FreeIdentTable( &data->abstractSym.baseInterfaces );
+      FreeMethodTable( &data->abstractSym.methods );
+      break;
+
+    case tkInterface:
+      FreeIdentTable( &data->interfaceSym.baseInterfaces );
+      FreeMethodTable( &data->interfaceSym.methods );
+      break;
+
+    case tkOperator:
+      FreeFuncParamTable( &data->operatorSym.operParams );
+      break;
+    }
   }
 
-  int DeclareVar( TokenTable* destTable,
-      unsigned typeID, char* varName, TokenVal* initialVal ) {
+  int DeclareVar( TokenTable* destTable, unsigned typeID, char* varName ) {
     TokenSym sym = {};
 
     if( !(destTable && typeID && varName) ) {
@@ -384,9 +458,20 @@ int main( int argc, char* argv[] ) {
     sym.tokenCode = tkVar;
     sym.varSym.typeID = typeID;
 
-    if( InsertTokenSym(destTable, varName, &sym) == 0 ) {
+    return InsertTokenSym(destTable, varName, &sym);
+  }
+
+  int LookupVar( TokenTable* sourceTable, char* varName, VarSym* destSym ) {
+    TokenSym sym = {};
+
+    if( !(sourceTable && varName && destSym) ) {
       return 0;
     }
 
+    if( RetrieveTokenSym(sourceTable, varName, &sym) == 0 ) {
+      return 0;
+    }
+
+    *destSym = sym.varSym;
     return -1;
   }
