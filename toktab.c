@@ -448,6 +448,38 @@ int main( int argc, char* argv[] ) {
     }
   }
 
+  int DeclareConst( TokenTable* destTable, unsigned typeID, char* constName ) {
+    TokenSym sym = {};
+
+    if( !(destTable && typeID && constName) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkConst;
+    sym.constSym.typeID = typeID;
+
+    return InsertTokenSym(destTable, constName, &sym);
+  }
+
+  int LookupConst( TokenTable* sourceTable, char* constName, ConstSym* destSym ) {
+    TokenSym sym = {};
+
+    if( !(sourceTable && constName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(sourceTable, constName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkConst ) {
+      return 0;
+    }
+
+    *destSym = sym.constSym;
+    return -1;
+  }
+
   int DeclareVar( TokenTable* destTable, unsigned typeID, char* varName ) {
     TokenSym sym = {};
 
@@ -469,6 +501,10 @@ int main( int argc, char* argv[] ) {
     }
 
     if( RetrieveTokenSym(sourceTable, varName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkVar ) {
       return 0;
     }
 
