@@ -62,6 +62,7 @@
   } TypeSpec;
 
   void FreeTypeSpec( TypeSpec* data );
+  int CopyTypeSpec( TypeSpec* dest, TypeSpec* source );
 
   DECLARE_UINT_KEYARRAY_TYPES( TypeTable, TypeSpec )
 
@@ -74,132 +75,166 @@
   DECLARE_UINT_KEYARRAY_RETRIEVE( RetrieveTypeSpec, TypeTable, TypeSpec )
   DECLARE_UINT_KEYARRAY_FINDINDEX( IndexOfTypeSpec, TypeTable )
 
-  int CopyTokenVal( TokenVal* source, TokenVal* dest );
+  DECLARE_UINT_KEYARRAY_RELEASEUNUSED( CompactTypeTable, TypeTable )
+  DECLARE_UINT_KEYARRAY_COPY( CopyTypeTable, TypeTable, TypeSpec,
+      CopyTypeSpec, FreeTypeSpec )
+
   void FreeTokenVal( TokenVal* tokenVal );
+  int CopyTokenVal( TokenVal* dest, TokenVal* source );
 
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize );
 
-/* Enum field table declarations */
+/* Enum table declarations */
 
-  typedef struct EnumField {
+  typedef struct Enum {
     unsigned typeID;
     TokenVal value;
-  } EnumField;
+  } Enum;
 
-  void FreeEnumField( EnumField* data );
+  void FreeEnum( Enum* data );
+  int CopyEnum( Enum* dest, Enum* source );
 
-  DECLARE_STRING_KEYARRAY_TYPES( EnumFieldTable, EnumField )
+  DECLARE_STRING_KEYARRAY_TYPES( EnumTable, Enum )
 
-  DECLARE_STRING_KEYARRAY_CREATE( CreateEnumTable, EnumFieldTable )
-  DECLARE_STRING_KEYARRAY_FREE( FreeEnumTable, EnumFieldTable, FreeEnumField )
+  DECLARE_STRING_KEYARRAY_CREATE( CreateEnumTable, EnumTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeEnumTable, EnumTable, FreeEnum )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertEnumField, EnumFieldTable, EnumField )
-  DECLARE_STRING_KEYARRAY_REMOVE( RemoveEnumField, EnumFieldTable, FreeEnumField )
-  DECLARE_STRING_KEYARRAY_MODIFY( ModifyEnumField, EnumFieldTable, EnumField )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveEnumField, EnumFieldTable, EnumField )
-  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfEnumField, EnumFieldTable )
+  DECLARE_STRING_KEYARRAY_INSERT( InsertEnum, EnumTable, Enum )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveEnum, EnumTable, FreeEnum )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyEnum, EnumTable, Enum )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveEnum, EnumTable, Enum )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfEnum, EnumTable )
 
-/* Struct field table declarations */
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactEnumTable, EnumTable )
+  DECLARE_STRING_KEYARRAY_COPY( CopyEnumTable, EnumTable, Enum,
+      CopyEnum, FreeEnum )
 
-  typedef struct StructField {
+/* Field table declarations */
+
+  typedef struct Field {
     unsigned typeID;
     TokenVal value;
-  } StructField;
+  } Field;
 
-  void FreeStructField( StructField* data );
+  void FreeField( Field* data );
+  int CopyField( Field* dest, Field* source );
 
-  DECLARE_STRING_KEYARRAY_TYPES( StructFieldTable, StructField )
+  DECLARE_STRING_KEYARRAY_TYPES( FieldTable, Field )
 
-  DECLARE_STRING_KEYARRAY_CREATE( CreateStructFieldTable, StructFieldTable )
-  DECLARE_STRING_KEYARRAY_FREE( FreeStructFieldTable, StructFieldTable, FreeStructField )
+  DECLARE_STRING_KEYARRAY_CREATE( CreateFieldTable, FieldTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeFieldTable, FieldTable, FreeField )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertStructField, StructFieldTable, StructField )
-  DECLARE_STRING_KEYARRAY_REMOVE( RemoveStructField, StructFieldTable, FreeStructField )
-  DECLARE_STRING_KEYARRAY_MODIFY( ModifyStructField, StructFieldTable, StructField )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveStructField, StructFieldTable, StructField )
-  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfStructField, StructFieldTable )
+  DECLARE_STRING_KEYARRAY_INSERT( InsertField, FieldTable, Field )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveField, FieldTable, FreeField )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyField, FieldTable, Field )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveField, FieldTable, Field )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfField, FieldTable )
 
-/* Function parameter table declarations */
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactFieldTable, FieldTable )
+  DECLARE_STRING_KEYARRAY_COPY( CopyFieldTable, FieldTable, Field,
+      CopyField, FreeField )
 
-  typedef struct FuncParam {
+/* Parameter table declarations */
+
+  typedef struct Param {
     unsigned typeID;
-    unsigned paramIndex;
-  } FuncParam;
+    unsigned index;
+  } Param;
 
-  void FreeFuncParam( FuncParam* data );
+  void FreeParam( Param* data );
+  int CopyParam( Param* dest, Param* source );
 
-  DECLARE_STRING_KEYARRAY_TYPES( FuncParamTable, FuncParam )
+  DECLARE_STRING_KEYARRAY_TYPES( ParamTable, Param )
 
-  DECLARE_STRING_KEYARRAY_CREATE( CreateParamTable, FuncParamTable )
-  DECLARE_STRING_KEYARRAY_FREE( FreeFuncParamTable, FuncParamTable, FreeFuncParam )
+  DECLARE_STRING_KEYARRAY_CREATE( CreateParamTable, ParamTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeParamTable, ParamTable, FreeParam )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertFuncParam, FuncParamTable, FuncParam )
-  DECLARE_STRING_KEYARRAY_REMOVE( RemoveFuncParam, FuncParamTable, FreeFuncParam )
-  DECLARE_STRING_KEYARRAY_MODIFY( ModifyFuncParam, FuncParamTable, FuncParam )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveFuncParam, FuncParamTable, FuncParam )
-  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfFuncParam, FuncParamTable )
+  DECLARE_STRING_KEYARRAY_INSERT( InsertParam, ParamTable, Param )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveParam, ParamTable, FreeParam )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyParam, ParamTable, Param )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveParam, ParamTable, Param )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfParam, ParamTable )
 
-/* Identifier name table declarations */
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactParamTable, ParamTable )
+  DECLARE_STRING_KEYARRAY_COPY( CopyParamTable, ParamTable, Param,
+      CopyParam, FreeParam )
 
-  typedef struct IdentName {
-    unsigned nameIndex;
-  } IdentName;
+/* Identifier table declarations */
 
-  void FreeIdentName( IdentName* data );
+  typedef struct Ident {
+    unsigned index;
+  } Ident;
 
-  DECLARE_STRING_KEYARRAY_TYPES( IdentTable, IdentName )
+  void FreeIdent( Ident* data );
+  int CopyIdent( Ident* dest, Ident* source );
+
+  DECLARE_STRING_KEYARRAY_TYPES( IdentTable, Ident )
 
   DECLARE_STRING_KEYARRAY_CREATE( CreateIdentTable, IdentTable )
-  DECLARE_STRING_KEYARRAY_FREE( FreeIdentTable, IdentTable, FreeIdentName )
+  DECLARE_STRING_KEYARRAY_FREE( FreeIdentTable, IdentTable, FreeIdent )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertIdentName, IdentTable, IdentName )
-  DECLARE_STRING_KEYARRAY_REMOVE( RemoveIdentName, IdentTable, FreeIdentName )
-  DECLARE_STRING_KEYARRAY_MODIFY( ModifyIdentName, IdentTable, IdentName )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveIdentName, IdentTable, IdentName )
+  DECLARE_STRING_KEYARRAY_INSERT( InsertIdentName, IdentTable, Ident )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveIdentName, IdentTable, FreeIdent )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyIdentName, IdentTable, Ident )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveIdentName, IdentTable, Ident )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfIdentName, IdentTable )
+
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactIdentTable, IdentTable )
+  DECLARE_STRING_KEYARRAY_COPY( CopyIdentTable, IdentTable, Ident,
+      CopyIdent, FreeIdent )
 
 /* Object member variable table declarations */
 
-  typedef struct MemberVar {
+  typedef struct Member {
     unsigned typeID;
     unsigned accessType;
     unsigned memberIndex;
     TokenVal value;
-  } MemberVar;
+  } Member;
 
-  void FreeMemberVar( MemberVar* data );
+  void FreeMember( Member* data );
+  int CopyMember( Member* dest, Member* source );
 
-  DECLARE_STRING_KEYARRAY_TYPES( MemberTable, MemberVar )
+  DECLARE_STRING_KEYARRAY_TYPES( MemberTable, Member )
 
   DECLARE_STRING_KEYARRAY_CREATE( CreateMemberTable, MemberTable )
-  DECLARE_STRING_KEYARRAY_FREE( FreeMemberTable, MemberTable, FreeMemberVar )
+  DECLARE_STRING_KEYARRAY_FREE( FreeMemberTable, MemberTable, FreeMember )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertMemberVar, MemberTable, MemberVar )
-  DECLARE_STRING_KEYARRAY_REMOVE( RemoveMemberVar, MemberTable, FreeMemberVar )
-  DECLARE_STRING_KEYARRAY_MODIFY( ModifyMemberVar, MemberTable, MemberVar )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveMemberVar, MemberTable, MemberVar )
-  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfMemberVar, MemberTable )
+  DECLARE_STRING_KEYARRAY_INSERT( InsertMember, MemberTable, Member )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveMember, MemberTable, FreeMember )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyMember, MemberTable, Member )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveMember, MemberTable, Member )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfMember, MemberTable )
+
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactMemberTable, MemberTable )
+  DECLARE_STRING_KEYARRAY_COPY( CopyMemberTable, MemberTable, Member,
+      CopyMember, FreeMember )
 
 /* Method table declarations */
 
-  typedef struct InterfaceMethod {
+  typedef struct Method {
     unsigned typeID;
     unsigned methodIndex;
-    FuncParamTable* params;
-  } InterfaceMethod;
+    ParamTable* params;
+  } Method;
 
-  void FreeInterfaceMethod( InterfaceMethod* data );
+  void FreeMethod( Method* data );
+  int CopyMethod( Method* dest, Method* source );
 
-  DECLARE_STRING_KEYARRAY_TYPES( MethodTable, InterfaceMethod )
+  DECLARE_STRING_KEYARRAY_TYPES( MethodTable, Method )
 
   DECLARE_STRING_KEYARRAY_CREATE( CreateMethodTable, MethodTable )
-  DECLARE_STRING_KEYARRAY_FREE( FreeMethodTable, MethodTable, FreeInterfaceMethod )
+  DECLARE_STRING_KEYARRAY_FREE( FreeMethodTable, MethodTable, FreeMethod )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertInterfaceMethod, MethodTable, InterfaceMethod )
-  DECLARE_STRING_KEYARRAY_REMOVE( RemoveInterfaceMethod, MethodTable, FreeInterfaceMethod )
-  DECLARE_STRING_KEYARRAY_MODIFY( ModifyInterfaceMethod, MethodTable, InterfaceMethod )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveInterfaceMethod, MethodTable, InterfaceMethod )
-  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfInterfaceMethod, MethodTable )
+  DECLARE_STRING_KEYARRAY_INSERT( InsertMethod, MethodTable, Method )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveMethod, MethodTable, FreeMethod )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyMethod, MethodTable, Method )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveMethod, MethodTable, Method )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfMethod, MethodTable )
+
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactMethodTable, MethodTable )
+  DECLARE_STRING_KEYARRAY_COPY( CopyMethodTable, MethodTable, Method,
+      CopyMethod, FreeMethod )
 
 /* Token table declarations */
 
@@ -209,15 +244,15 @@
  
    typedef struct EnumSym { // enum
      unsigned typeID;
-     EnumFieldTable* fields;
+     FieldTable* fields;
    } EnumSym;
  
    typedef struct StructSym { // struct
-     StructFieldTable* fields;
+     FieldTable* fields;
    } StructSym;
  
    typedef struct UnionSym { // union
-     StructFieldTable* fields;
+     FieldTable* fields;
    } UnionSym;
  
   typedef struct TypeSym { // type
@@ -230,12 +265,12 @@
 
   typedef struct { // import
     unsigned typeID;
-    FuncParamTable* funcParams;
+    ParamTable* funcParams;
   } ImportSym;
 
   typedef struct { // func
     unsigned typeID;
-    FuncParamTable* funcParams;
+    ParamTable* funcParams;
   } FuncSym;
 
   typedef struct { // object
@@ -256,7 +291,7 @@
   } InterfaceSym;
 
   typedef struct { // operator
-    FuncParamTable* operParams;
+    ParamTable* operParams;
   } OperatorSym;
 
   typedef struct TokenSym {
@@ -279,6 +314,7 @@
   } TokenSym;
 
   void FreeTokenSym( TokenSym* data );
+  int CopyTokenSym( TokenSym* dest, TokenSym* source );
 
   DECLARE_STRING_KEYARRAY_TYPES( TokenTable, TokenSym )
 
@@ -292,9 +328,42 @@
   DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveTokenSym, TokenTable, TokenSym )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfTokenSym, TokenTable )
 
-  int DeclareVar( TokenTable* destTable, unsigned typeID, char* varName );
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactTokenTable, TokenTable )
+  DECLARE_STRING_KEYARRAY_COPY( CopyTokenTable, TokenTable, TokenSym,
+      CopyTokenSym, FreeTokenSym )
 
-  int LookupVar( TokenTable* sourceTable, char* varName, VarSym* destSym );
+  int DeclareConst( TokenTable* tokenTable, unsigned typeID, char* constName );
+  int LookupConst( TokenTable* tokenTable, char* constName, ConstSym* destSym );
+
+  int DeclareEnumType( TokenTable* tokenTable, unsigned typeID, char* enumTypeName, EnumTable* enumTable );
+  int LookupEnumType( TokenTable* tokenTable, char* enumTypeName, EnumSym* destSym );
+
+  int DeclareStruct( TokenTable* tokenTable, char* structName, FieldTable* fieldTable );
+  int LookupStruct( TokenTable* tokenTable, char* structName, StructSym* destSym );
+
+  int DeclareUnion( TokenTable* tokenTable, char* unionName, FieldTable* fieldTable );
+  int LookupUnion( TokenTable* tokenTable, char* unionName, UnionSym* destSym );
+
+  int DeclareType( TokenTable* tokenTable, unsigned typeID, char* testName );
+  int LookupType( TokenTable* tokenTable, char* testName, TypeSym* destSym );
+
+  int DeclareVar( TokenTable* tokenTable, unsigned typeID, char* varName );
+  int LookupVar( TokenTable* tokenTable, char* varName, VarSym* destSym );
+
+  int DeclareFunc( TokenTable* tokenTable, unsigned typeID, char* funcName, ParamTable* paramTable );
+  int LookupFunc( TokenTable* tokenTable, char* funcName, FuncSym* destSym );
+
+  int DeclareObject( TokenTable* tokenTable, char* objectName, char* inheritsName, MemberTable* memberTable );
+  int LookupObject( TokenTable* tokenTable, char* objectName, ObjectSym* objectSym );
+
+  int DeclareAbstract( TokenTable* tokenTable, char* abstractName, char* implementsName, MethodTable* methodTable );
+  int LookupAbstract( TokenTable* tokenTable, char* abstractName, AbstractSym* destSym );
+
+  int DeclareInterface( TokenTable* tokenTable, char* interfaceName, char* implementsName, MethodTable* methodTable );
+  int LookupInterface( TokenTable* tokenTable, char* interfaceName, InterfaceSym* destSym );
+
+  int DeclareOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, ParamTable* paramTable );
+  int LookupOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, OperatorSym* destSym );
 
 /* Global variables */
 
@@ -340,6 +409,17 @@ int main( int argc, char* argv[] ) {
   void FreeTypeSpec( TypeSpec* data ) {
   }
 
+  int CopyTypeSpec( TypeSpec* dest, TypeSpec* source ) {
+    return 0;
+  }
+
+  void FreeTokenVal( TokenVal* tokenVal ) {
+  }
+
+  int CopyTokenVal( TokenVal* dest, TokenVal* source ) {
+    return 0;
+  }
+
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize ) {
     static const char* typeString[] = { "", "u", "i", "e", "s", "u", "o" };
     char indexHexStr[16] = {};
@@ -367,37 +447,61 @@ int main( int argc, char* argv[] ) {
     return 0;
   }
 
-/* Enum field table implementation */
+/* Enum table implementation */
 
-  void FreeEnumField( EnumField* data ) {
+  void FreeEnum( Enum* data ) {
   }
 
-/* Struct field table implementation */
-
-  void FreeStructField( StructField* data ) {
+  int CopyEnum( Enum* dest, Enum* source ) {
+    return 0;
   }
 
-/* Function parameter table implementation */
+/* Field table implementation */
 
-  void FreeFuncParam( FuncParam* data ) {
+  void FreeField( Field* data ) {
+  }
+
+  int CopyField( Field* dest, Field* source ) {
+    return 0;
+  }
+
+/* Parameter table implementation */
+
+  void FreeParam( Param* data ) {
+  }
+
+  int CopyParam( Param* dest, Param* source ) {
+    return 0;
   }
 
 /* Object member variable table declarations */
 
-  void FreeMemberVar( MemberVar* data ) {
+  void FreeMember( Member* data ) {
   }
 
-/* Identifier name table implementation */
+  int CopyMember( Member* dest, Member* source ) {
+    return 0;
+  }
 
-  void FreeIdentName( IdentName* data ) {
+/* Identifier table implementation */
+
+  void FreeIdent( Ident* data ) {
+  }
+
+  int CopyIdent( Ident* dest, Ident* source ) {
+    return 0;
   }
 
 /* Method table implementation */
 
-  void FreeInterfaceMethod( InterfaceMethod* data ) {
+  void FreeMethod( Method* data ) {
     if( data ) {
-      FreeFuncParamTable( &data->params );
+      FreeParamTable( &data->params );
     }
+  }
+
+  int CopyMethod( Method* dest, Method* source ) {
+    return 0;
   }
 
 /* Token Table implementation */
@@ -413,19 +517,19 @@ int main( int argc, char* argv[] ) {
       break;
 
     case tkStruct:
-      FreeStructFieldTable( &data->structSym.fields );
+      FreeFieldTable( &data->structSym.fields );
       break;
 
     case tkUnion:
-      FreeStructFieldTable( &data->unionSym.fields );
+      FreeFieldTable( &data->unionSym.fields );
       break;
 
     case tkImport:
-      FreeFuncParamTable( &data->importSym.funcParams );
+      FreeParamTable( &data->importSym.funcParams );
       break;
 
     case tkFunc:
-      FreeFuncParamTable( &data->funcSym.funcParams );
+      FreeParamTable( &data->funcSym.funcParams );
       break;
 
     case tkObject:
@@ -443,32 +547,36 @@ int main( int argc, char* argv[] ) {
       break;
 
     case tkOperator:
-      FreeFuncParamTable( &data->operatorSym.operParams );
+      FreeParamTable( &data->operatorSym.operParams );
       break;
     }
   }
 
-  int DeclareConst( TokenTable* destTable, unsigned typeID, char* constName ) {
+  int CopyTokenSym( TokenSym* dest, TokenSym* source ) {
+    return 0;
+  }
+
+  int DeclareConst( TokenTable* tokenTable, unsigned typeID, char* constName ) {
     TokenSym sym = {};
 
-    if( !(destTable && typeID && constName) ) {
+    if( !(tokenTable && typeID && constName) ) {
       return 0;
     }
 
     sym.tokenCode = tkConst;
     sym.constSym.typeID = typeID;
 
-    return InsertTokenSym(destTable, constName, &sym);
+    return InsertTokenSym(tokenTable, constName, &sym);
   }
 
-  int LookupConst( TokenTable* sourceTable, char* constName, ConstSym* destSym ) {
+  int LookupConst( TokenTable* tokenTable, char* constName, ConstSym* destSym ) {
     TokenSym sym = {};
 
-    if( !(sourceTable && constName && destSym) ) {
+    if( !(tokenTable && constName && destSym) ) {
       return 0;
     }
 
-    if( RetrieveTokenSym(sourceTable, constName, &sym) == 0 ) {
+    if( RetrieveTokenSym(tokenTable, constName, &sym) == 0 ) {
       return 0;
     }
 
@@ -480,27 +588,59 @@ int main( int argc, char* argv[] ) {
     return -1;
   }
 
-  int DeclareVar( TokenTable* destTable, unsigned typeID, char* varName ) {
+  int DeclareEnumType( TokenTable* tokenTable, unsigned typeID, char* enumTypeName, EnumTable* enumTable ) {
+    return 0;
+  }
+
+  int LookupEnumType( TokenTable* tokenTable, char* enumTypeName, EnumSym* destSym ) {
+    return 0;
+  }
+
+  int DeclareStruct( TokenTable* tokenTable, char* structName, FieldTable* fieldTable ) {
+    return 0;
+  }
+
+  int LookupStruct( TokenTable* tokenTable, char* structName, StructSym* destSym ) {
+    return 0;
+  }
+
+  int DeclareUnion( TokenTable* tokenTable, char* unionName, FieldTable* fieldTable ) {
+    return 0;
+  }
+
+  int LookupUnion( TokenTable* tokenTable, char* unionName, UnionSym* destSym ) {
+    return 0;
+  }
+
+  int DeclareType( TokenTable* tokenTable, unsigned typeID, char* testName ) {
+    return 0;
+  }
+
+  int LookupType( TokenTable* tokenTable, char* testName, TypeSym* destSym ) {
+    return 0;
+  }
+
+  int DeclareVar( TokenTable* tokenTable, unsigned typeID, char* varName ) {
     TokenSym sym = {};
 
-    if( !(destTable && typeID && varName) ) {
+    if( !(tokenTable && typeID && varName) ) {
       return 0;
     }
 
     sym.tokenCode = tkVar;
     sym.varSym.typeID = typeID;
 
-    return InsertTokenSym(destTable, varName, &sym);
+    return InsertTokenSym(tokenTable, varName, &sym);
   }
 
-  int LookupVar( TokenTable* sourceTable, char* varName, VarSym* destSym ) {
+  int LookupVar( TokenTable* tokenTable, char* varName, VarSym* destSym ) {
     TokenSym sym = {};
 
-    if( !(sourceTable && varName && destSym) ) {
+    if( !(tokenTable && varName && destSym) ) {
       return 0;
     }
 
-    if( RetrieveTokenSym(sourceTable, varName, &sym) == 0 ) {
+    if( RetrieveTokenSym(tokenTable, varName, &sym) == 0 ) {
       return 0;
     }
 
@@ -510,4 +650,44 @@ int main( int argc, char* argv[] ) {
 
     *destSym = sym.varSym;
     return -1;
+  }
+
+  int DeclareFunc( TokenTable* tokenTable, unsigned typeID, char* funcName, ParamTable* paramTable ) {
+    return 0;
+  }
+
+  int LookupFunc( TokenTable* tokenTable, char* funcName, FuncSym* destSym ) {
+    return 0;
+  }
+
+  int DeclareObject( TokenTable* tokenTable, char* objectName, char* inheritsName, MemberTable* memberTable ) {
+    return 0;
+  }
+
+  int LookupObject( TokenTable* tokenTable, char* objectName, ObjectSym* objectSym ) {
+    return 0;
+  }
+
+  int DeclareAbstract( TokenTable* tokenTable, char* abstractName, char* implementsName, MethodTable* methodTable )  {
+    return 0;
+  }
+
+  int LookupAbstract( TokenTable* tokenTable, char* abstractName, AbstractSym* destSym ) {
+    return 0;
+  }
+
+  int DeclareInterface( TokenTable* tokenTable, char* interfaceName, char* implementsName, MethodTable* methodTable ) {
+    return 0;
+  }
+
+  int LookupInterface( TokenTable* tokenTable, char* interfaceName, InterfaceSym* destSym ) {
+    return 0;
+  }
+
+  int DeclareOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, ParamTable* paramTable ) {
+    return 0;
+  }
+
+  int LookupOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, OperatorSym* destSym ) {
+    return 0;
   }
