@@ -8,7 +8,7 @@
 
   typedef enum Token {
     tkConst = 1,
-    tkEnum,
+    tkEnumType,
     tkStruct,
     tkUnion,
     tkType,
@@ -99,10 +99,10 @@
   DECLARE_STRING_KEYARRAY_CREATE( CreateEnumTable, EnumTable )
   DECLARE_STRING_KEYARRAY_FREE( FreeEnumTable, EnumTable, FreeEnum )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertEnum, EnumTable, Enum )
+  DECLARE_STRING_KEYARRAY_INSERT( DeclareEnum, EnumTable, Enum )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveEnum, EnumTable, FreeEnum )
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyEnum, EnumTable, Enum )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveEnum, EnumTable, Enum )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupEnum, EnumTable, Enum )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfEnum, EnumTable )
 
   DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactEnumTable, EnumTable )
@@ -124,10 +124,10 @@
   DECLARE_STRING_KEYARRAY_CREATE( CreateFieldTable, FieldTable )
   DECLARE_STRING_KEYARRAY_FREE( FreeFieldTable, FieldTable, FreeField )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertField, FieldTable, Field )
+  DECLARE_STRING_KEYARRAY_INSERT( DeclareField, FieldTable, Field )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveField, FieldTable, FreeField )
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyField, FieldTable, Field )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveField, FieldTable, Field )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupField, FieldTable, Field )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfField, FieldTable )
 
   DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactFieldTable, FieldTable )
@@ -149,10 +149,10 @@
   DECLARE_STRING_KEYARRAY_CREATE( CreateParamTable, ParamTable )
   DECLARE_STRING_KEYARRAY_FREE( FreeParamTable, ParamTable, FreeParam )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertParam, ParamTable, Param )
+  DECLARE_STRING_KEYARRAY_INSERT( DeclareParam, ParamTable, Param )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveParam, ParamTable, FreeParam )
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyParam, ParamTable, Param )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveParam, ParamTable, Param )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupParam, ParamTable, Param )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfParam, ParamTable )
 
   DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactParamTable, ParamTable )
@@ -173,11 +173,11 @@
   DECLARE_STRING_KEYARRAY_CREATE( CreateIdentTable, IdentTable )
   DECLARE_STRING_KEYARRAY_FREE( FreeIdentTable, IdentTable, FreeIdent )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertIdentName, IdentTable, Ident )
-  DECLARE_STRING_KEYARRAY_REMOVE( RemoveIdentName, IdentTable, FreeIdent )
-  DECLARE_STRING_KEYARRAY_MODIFY( ModifyIdentName, IdentTable, Ident )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveIdentName, IdentTable, Ident )
-  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfIdentName, IdentTable )
+  DECLARE_STRING_KEYARRAY_INSERT( DeclareIdent, IdentTable, Ident )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveIdent, IdentTable, FreeIdent )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyIdent, IdentTable, Ident )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupIdent, IdentTable, Ident )
+  DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfIdent, IdentTable )
 
   DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactIdentTable, IdentTable )
   DECLARE_STRING_KEYARRAY_COPY( CopyIdentTable, IdentTable, Ident,
@@ -200,10 +200,10 @@
   DECLARE_STRING_KEYARRAY_CREATE( CreateMemberTable, MemberTable )
   DECLARE_STRING_KEYARRAY_FREE( FreeMemberTable, MemberTable, FreeMember )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertMember, MemberTable, Member )
+  DECLARE_STRING_KEYARRAY_INSERT( DeclareMember, MemberTable, Member )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveMember, MemberTable, FreeMember )
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyMember, MemberTable, Member )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveMember, MemberTable, Member )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupMember, MemberTable, Member )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfMember, MemberTable )
 
   DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactMemberTable, MemberTable )
@@ -226,10 +226,10 @@
   DECLARE_STRING_KEYARRAY_CREATE( CreateMethodTable, MethodTable )
   DECLARE_STRING_KEYARRAY_FREE( FreeMethodTable, MethodTable, FreeMethod )
 
-  DECLARE_STRING_KEYARRAY_INSERT( InsertMethod, MethodTable, Method )
+  DECLARE_STRING_KEYARRAY_INSERT( DeclareMethod, MethodTable, Method )
   DECLARE_STRING_KEYARRAY_REMOVE( RemoveMethod, MethodTable, FreeMethod )
   DECLARE_STRING_KEYARRAY_MODIFY( ModifyMethod, MethodTable, Method )
-  DECLARE_STRING_KEYARRAY_RETRIEVE( RetrieveMethod, MethodTable, Method )
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupMethod, MethodTable, Method )
   DECLARE_STRING_KEYARRAY_FINDINDEX( IndexOfMethod, MethodTable )
 
   DECLARE_STRING_KEYARRAY_RELEASEUNUSED( CompactMethodTable, MethodTable )
@@ -242,10 +242,10 @@
      unsigned typeID;
    } ConstSym;
  
-   typedef struct EnumSym { // enum
+   typedef struct EnumTypeSym { // enum
      unsigned typeID;
-     FieldTable* fields;
-   } EnumSym;
+     EnumTable* enums;
+   } EnumTypeSym;
  
    typedef struct StructSym { // struct
      FieldTable* fields;
@@ -263,35 +263,35 @@
     unsigned typeID;
   } VarSym;
 
-  typedef struct { // import
+  typedef struct ImportSym { // import
     unsigned typeID;
     ParamTable* funcParams;
   } ImportSym;
 
-  typedef struct { // func
+  typedef struct FuncSym { // func
     unsigned typeID;
-    ParamTable* funcParams;
+    ParamTable* params;
   } FuncSym;
 
-  typedef struct { // object
+  typedef struct ObjectSym { // object
     char baseObject[128];
     MemberTable* members;
   } ObjectSym;
 
-  typedef struct { // abstract
+  typedef struct AbstractSym { // abstract
     char objectName[128];
     IdentTable* baseInterfaces;
     MethodTable* methods;
   } AbstractSym;
 
-  typedef struct { // interface
+  typedef struct InterfaceSym { // interface
     char objectName[128];
     IdentTable* baseInterfaces;
     MethodTable* methods;
   } InterfaceSym;
 
-  typedef struct { // operator
-    ParamTable* operParams;
+  typedef struct OperatorSym { // operator
+    ParamTable* params;
   } OperatorSym;
 
   typedef struct TokenSym {
@@ -299,7 +299,7 @@
 
     union {
       ConstSym constSym;
-      EnumSym enumSym;
+      EnumTypeSym enumTypeSym;
       StructSym structSym;
       UnionSym unionSym;
       TypeSym typeSym;
@@ -336,7 +336,7 @@
   int LookupConst( TokenTable* tokenTable, char* constName, ConstSym* destSym );
 
   int DeclareEnumType( TokenTable* tokenTable, unsigned typeID, char* enumTypeName, EnumTable* enumTable );
-  int LookupEnumType( TokenTable* tokenTable, char* enumTypeName, EnumSym* destSym );
+  int LookupEnumType( TokenTable* tokenTable, char* enumTypeName, EnumTypeSym* destSym );
 
   int DeclareStruct( TokenTable* tokenTable, char* structName, FieldTable* fieldTable );
   int LookupStruct( TokenTable* tokenTable, char* structName, StructSym* destSym );
@@ -345,7 +345,7 @@
   int LookupUnion( TokenTable* tokenTable, char* unionName, UnionSym* destSym );
 
   int DeclareType( TokenTable* tokenTable, unsigned typeID, char* testName );
-  int LookupType( TokenTable* tokenTable, char* testName, TypeSym* destSym );
+  int LookupType( TokenTable* tokenTable, char* typeName, TypeSym* destSym );
 
   int DeclareVar( TokenTable* tokenTable, unsigned typeID, char* varName );
   int LookupVar( TokenTable* tokenTable, char* varName, VarSym* destSym );
@@ -354,7 +354,7 @@
   int LookupFunc( TokenTable* tokenTable, char* funcName, FuncSym* destSym );
 
   int DeclareObject( TokenTable* tokenTable, char* objectName, char* inheritsName, MemberTable* memberTable );
-  int LookupObject( TokenTable* tokenTable, char* objectName, ObjectSym* objectSym );
+  int LookupObject( TokenTable* tokenTable, char* objectName, ObjectSym* destSym );
 
   int DeclareAbstract( TokenTable* tokenTable, char* abstractName, char* implementsName, MethodTable* methodTable );
   int LookupAbstract( TokenTable* tokenTable, char* abstractName, AbstractSym* destSym );
@@ -362,8 +362,8 @@
   int DeclareInterface( TokenTable* tokenTable, char* interfaceName, char* implementsName, MethodTable* methodTable );
   int LookupInterface( TokenTable* tokenTable, char* interfaceName, InterfaceSym* destSym );
 
-  int DeclareOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, ParamTable* paramTable );
-  int LookupOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, OperatorSym* destSym );
+  int DeclareOperator( TokenTable* tokenTable, char* mangledName, ParamTable* paramTable );
+  int LookupOperator( TokenTable* tokenTable, char* mangledName, OperatorSym* destSym );
 
 /* Global variables */
 
@@ -512,8 +512,8 @@ int main( int argc, char* argv[] ) {
     }
 
     switch( data->tokenCode ) {
-    case tkEnum:
-      FreeEnumTable( &data->enumSym.fields );
+    case tkEnumType:
+      FreeEnumTable( &data->enumTypeSym.enums );
       break;
 
     case tkStruct:
@@ -529,7 +529,7 @@ int main( int argc, char* argv[] ) {
       break;
 
     case tkFunc:
-      FreeParamTable( &data->funcSym.funcParams );
+      FreeParamTable( &data->funcSym.params );
       break;
 
     case tkObject:
@@ -547,7 +547,7 @@ int main( int argc, char* argv[] ) {
       break;
 
     case tkOperator:
-      FreeParamTable( &data->operatorSym.operParams );
+      FreeParamTable( &data->operatorSym.params );
       break;
     }
   }
@@ -589,35 +589,132 @@ int main( int argc, char* argv[] ) {
   }
 
   int DeclareEnumType( TokenTable* tokenTable, unsigned typeID, char* enumTypeName, EnumTable* enumTable ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && typeID && enumTypeName && enumTable) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkEnumType;
+    sym.enumTypeSym.typeID = typeID;
+    sym.enumTypeSym.enums = enumTable;
+
+    return InsertTokenSym(tokenTable, enumTypeName, &sym);
   }
 
-  int LookupEnumType( TokenTable* tokenTable, char* enumTypeName, EnumSym* destSym ) {
-    return 0;
+  int LookupEnumType( TokenTable* tokenTable, char* enumTypeName, EnumTypeSym* destSym ) {
+    TokenSym sym = {};
+
+    if( !(tokenTable && enumTypeName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, enumTypeName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkEnumType ) {
+      return 0;
+    }
+
+    *destSym = sym.enumTypeSym;
+    return -1;
   }
 
   int DeclareStruct( TokenTable* tokenTable, char* structName, FieldTable* fieldTable ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && structName && fieldTable) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkStruct;
+    sym.structSym.fields = fieldTable;
+
+    return InsertTokenSym(tokenTable, structName, &sym);
   }
 
   int LookupStruct( TokenTable* tokenTable, char* structName, StructSym* destSym ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && structName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, structName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkStruct ) {
+      return 0;
+    }
+
+    *destSym = sym.structSym;
+    return -1;
   }
 
   int DeclareUnion( TokenTable* tokenTable, char* unionName, FieldTable* fieldTable ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && unionName && fieldTable) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkUnion;
+    sym.unionSym.fields = fieldTable;
+
+    return InsertTokenSym(tokenTable, unionName, &sym);
   }
 
   int LookupUnion( TokenTable* tokenTable, char* unionName, UnionSym* destSym ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && unionName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, unionName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkUnion ) {
+      return 0;
+    }
+
+    *destSym = sym.unionSym;
+    return -1;
   }
 
-  int DeclareType( TokenTable* tokenTable, unsigned typeID, char* testName ) {
-    return 0;
+  int DeclareType( TokenTable* tokenTable, unsigned typeID, char* typeName ) {
+    TokenSym sym = {};
+
+    if( !(tokenTable && typeID && typeName) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkType;
+    sym.typeSym.typeID = typeID;
+
+    return InsertTokenSym(tokenTable, typeName, &sym);
   }
 
-  int LookupType( TokenTable* tokenTable, char* testName, TypeSym* destSym ) {
-    return 0;
+  int LookupType( TokenTable* tokenTable, char* typeName, TypeSym* destSym ) {
+    TokenSym sym = {};
+
+    if( !(tokenTable && typeName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, typeName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkType ) {
+      return 0;
+    }
+
+    *destSym = sym.typeSym;
+    return -1;
   }
 
   int DeclareVar( TokenTable* tokenTable, unsigned typeID, char* varName ) {
@@ -653,41 +750,165 @@ int main( int argc, char* argv[] ) {
   }
 
   int DeclareFunc( TokenTable* tokenTable, unsigned typeID, char* funcName, ParamTable* paramTable ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && typeID && funcName) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkFunc;
+    sym.funcSym.typeID = typeID;
+    sym.funcSym.params = paramTable;
+
+    return InsertTokenSym(tokenTable, funcName, &sym);
   }
 
   int LookupFunc( TokenTable* tokenTable, char* funcName, FuncSym* destSym ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && funcName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, funcName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkFunc ) {
+      return 0;
+    }
+
+    *destSym = sym.funcSym;
+    return -1;
   }
 
   int DeclareObject( TokenTable* tokenTable, char* objectName, char* inheritsName, MemberTable* memberTable ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && objectName && inheritsName && memberTable) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkObject;
+    strncpy( sym.objectSym.baseObject, inheritsName, sizeof(sym.objectSym.baseObject) - 1 );
+    sym.objectSym.members = memberTable;
+
+    return InsertTokenSym(tokenTable, objectName, &sym);
   }
 
-  int LookupObject( TokenTable* tokenTable, char* objectName, ObjectSym* objectSym ) {
-    return 0;
+  int LookupObject( TokenTable* tokenTable, char* objectName, ObjectSym* destSym ) {
+    TokenSym sym = {};
+
+    if( !(tokenTable && objectName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, objectName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkObject ) {
+      return 0;
+    }
+
+    *destSym = sym.objectSym;
+    return -1;
   }
 
   int DeclareAbstract( TokenTable* tokenTable, char* abstractName, char* implementsName, MethodTable* methodTable )  {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && abstractName && implementsName && methodTable) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkAbstract;
+    strncpy( sym.abstractSym.objectName, implementsName, sizeof(sym.objectSym.baseObject) - 1 );
+    sym.abstractSym.methods = methodTable;
+
+    return InsertTokenSym(tokenTable, abstractName, &sym);
   }
 
   int LookupAbstract( TokenTable* tokenTable, char* abstractName, AbstractSym* destSym ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && abstractName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, abstractName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkAbstract ) {
+      return 0;
+    }
+
+    *destSym = sym.abstractSym;
+    return -1;
   }
 
   int DeclareInterface( TokenTable* tokenTable, char* interfaceName, char* implementsName, MethodTable* methodTable ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && interfaceName && implementsName && methodTable) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkInterface;
+    strncpy( sym.interfaceSym.objectName, implementsName, sizeof(sym.objectSym.baseObject) - 1 );
+    sym.interfaceSym.methods = methodTable;
+
+    return InsertTokenSym(tokenTable, interfaceName, &sym);
   }
 
   int LookupInterface( TokenTable* tokenTable, char* interfaceName, InterfaceSym* destSym ) {
-    return 0;
+    TokenSym sym = {};
+
+    if( !(tokenTable && interfaceName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, interfaceName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkInterface ) {
+      return 0;
+    }
+
+    *destSym = sym.interfaceSym;
+    return -1;
   }
 
-  int DeclareOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, ParamTable* paramTable ) {
-    return 0;
+  int DeclareOperator( TokenTable* tokenTable, char* mangledName, ParamTable* paramTable ) {
+    TokenSym sym = {};
+
+    if( !(tokenTable && mangledName && paramTable) ) {
+      return 0;
+    }
+
+    sym.tokenCode = tkOperator;
+    sym.operatorSym.params = paramTable;
+
+    return InsertTokenSym(tokenTable, mangledName, &sym);
   }
 
-  int LookupOperator( TokenTable* tokenTable, unsigned leftTypeID, unsigned operatorToken, unsigned rightTypeID, OperatorSym* destSym ) {
-    return 0;
+  int LookupOperator( TokenTable* tokenTable, char* mangledName, OperatorSym* destSym ) {
+    TokenSym sym = {};
+
+    if( !(tokenTable && mangledName && destSym) ) {
+      return 0;
+    }
+
+    if( RetrieveTokenSym(tokenTable, mangledName, &sym) == 0 ) {
+      return 0;
+    }
+
+    if( sym.tokenCode != tkOperator ) {
+      return 0;
+    }
+
+    *destSym = sym.operatorSym;
+    return -1;
   }
