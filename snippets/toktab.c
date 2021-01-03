@@ -48,14 +48,13 @@
 
   typedef struct TokenVal {
     unsigned valType;
+
     union {
-      unsigned uval;
-      int ival;
+      unsigned valUint;
+      int valInt;
+      char valChar;
     };
   } TokenVal;
-
-  void FreeTokenVal( TokenVal* tokenVal );
-  int CopyTokenVal( TokenVal* dest, TokenVal* source );
 
 /* Type table declarations */
 
@@ -408,13 +407,6 @@ int main( int argc, char* argv[] ) {
 
 /* Token value implementation */
 
-  void FreeTokenVal( TokenVal* tokenVal ) {
-  }
-
-  int CopyTokenVal( TokenVal* dest, TokenVal* source ) {
-    return -1;
-  }
-
 /* Type table implementation */
 
   void FreeTypeSpec( TypeSpec* data ) {
@@ -426,7 +418,6 @@ int main( int argc, char* argv[] ) {
 
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize ) {
     static const char* typeString[] = { "", "u", "i", "e", "s", "u", "o" };
-    char indexHexStr[16] = {};
     char mangledResult[256] = {};
     int mangledLength;
 
@@ -434,13 +425,11 @@ int main( int argc, char* argv[] ) {
       return 0;
     }
 
-    snprintf( indexHexStr, sizeof(indexHexStr) - 1, "a%0.8x", typeSpec->indexCount );
-
     mangledLength = snprintf( mangledResult, sizeof(mangledResult) - 1, "%s%s%s%s",
       typeSpec->ptrType == ptrData ? "p" : typeSpec->ptrType == ptrRef ? "r" : "",
       (typeSpec->baseType - typeUint + 1) <= (typeObject - typeUint + 1) ? typeString[typeSpec->baseType - typeUint + 1] : "",
       (typeSpec->baseType - typeEnum + 1) <= (typeObject - typeEnum + 1) ? typeSpec->typeName : "",
-      typeSpec->indexCount ? indexHexStr : ""
+      typeSpec->indexCount ? "a" : ""
     );
 
     if( (mangledLength > 0) && (mangledLength < destSize) ) {

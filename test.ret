@@ -15,12 +15,16 @@ program test
   type @[] t2
   type @uint[100] t3
   type @uint[] t4
-  type bool[100] t5
-  type bool t6
-  type char[100] t7
-  type char t8
-  type string[100] t9
-  type string t10
+  type #[100] t5
+  type #[] t6
+  type #uint[100] t7
+  type #uint[] t8
+  type bool[100] t9
+  type bool t10
+  type char[100] t11
+  type char t12
+  type string[100] t13
+  type string t14
 
   type uint UINT
 
