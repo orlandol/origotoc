@@ -616,6 +616,8 @@ SOFTWARE.
     }\
     \
     for( index = 0; index < itemCount; index++ ) {\
+      /* Direct copy by default, allowing copy function to be empty */\
+      newCopy->item[index].data = sourceItem[index].data;\
       if( copyDataFunc(&(newCopy->item[index].data),\
           &(sourceItem[index].data)) == 0 ) {\
         goto ReturnError;\
@@ -1028,6 +1030,8 @@ SOFTWARE.
     }\
     \
     for( index = 0; index < itemCount; index++ ) {\
+     /* Direct copy by default, allowing copy function to be empty */\
+      newCopy->item[index].data = sourceItem[index].data;\
       if( copyDataFunc(&(newCopy->item[index].data),\
           &(sourceItem[index].data)) == 0 ) {\
         goto ReturnError;\

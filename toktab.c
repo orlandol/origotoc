@@ -44,6 +44,8 @@
     accessInternal = 2
   } MemberAccessType;
 
+/* Token value declarations */
+
   typedef struct TokenVal {
     unsigned valType;
     union {
@@ -51,6 +53,9 @@
       int ival;
     };
   } TokenVal;
+
+  void FreeTokenVal( TokenVal* tokenVal );
+  int CopyTokenVal( TokenVal* dest, TokenVal* source );
 
 /* Type table declarations */
 
@@ -78,9 +83,6 @@
   DECLARE_UINT_KEYARRAY_RELEASEUNUSED( CompactTypeTable, TypeTable )
   DECLARE_UINT_KEYARRAY_COPY( CopyTypeTable, TypeTable, TypeSpec,
       CopyTypeSpec, FreeTypeSpec )
-
-  void FreeTokenVal( TokenVal* tokenVal );
-  int CopyTokenVal( TokenVal* dest, TokenVal* source );
 
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize );
 
@@ -404,20 +406,22 @@ int main( int argc, char* argv[] ) {
   return 0;
 }
 
+/* Token value implementation */
+
+  void FreeTokenVal( TokenVal* tokenVal ) {
+  }
+
+  int CopyTokenVal( TokenVal* dest, TokenVal* source ) {
+    return -1;
+  }
+
 /* Type table implementation */
 
   void FreeTypeSpec( TypeSpec* data ) {
   }
 
   int CopyTypeSpec( TypeSpec* dest, TypeSpec* source ) {
-    return 0;
-  }
-
-  void FreeTokenVal( TokenVal* tokenVal ) {
-  }
-
-  int CopyTokenVal( TokenVal* dest, TokenVal* source ) {
-    return 0;
+    return -1;
   }
 
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize ) {
@@ -453,7 +457,7 @@ int main( int argc, char* argv[] ) {
   }
 
   int CopyEnum( Enum* dest, Enum* source ) {
-    return 0;
+    return -1;
   }
 
 /* Field table implementation */
@@ -462,7 +466,7 @@ int main( int argc, char* argv[] ) {
   }
 
   int CopyField( Field* dest, Field* source ) {
-    return 0;
+    return -1;
   }
 
 /* Parameter table implementation */
@@ -471,7 +475,7 @@ int main( int argc, char* argv[] ) {
   }
 
   int CopyParam( Param* dest, Param* source ) {
-    return 0;
+    return -1;
   }
 
 /* Object member variable table declarations */
@@ -480,7 +484,7 @@ int main( int argc, char* argv[] ) {
   }
 
   int CopyMember( Member* dest, Member* source ) {
-    return 0;
+    return -1;
   }
 
 /* Identifier table implementation */
@@ -489,7 +493,7 @@ int main( int argc, char* argv[] ) {
   }
 
   int CopyIdent( Ident* dest, Ident* source ) {
-    return 0;
+    return -1;
   }
 
 /* Method table implementation */
@@ -501,6 +505,13 @@ int main( int argc, char* argv[] ) {
   }
 
   int CopyMethod( Method* dest, Method* source ) {
+    if( dest && source ) {
+      dest->params = CopyParamTable(source->params);
+      if( dest->params ) {
+        return -1;
+      }
+    }
+
     return 0;
   }
 
@@ -553,6 +564,92 @@ int main( int argc, char* argv[] ) {
   }
 
   int CopyTokenSym( TokenSym* dest, TokenSym* source ) {
+    if( dest && source ) {
+      switch( source->tokenCode ) {
+      case tkEnumType:
+        dest->enumTypeSym.enums =
+            CopyEnumTable(source->enumTypeSym.enums);
+        if( dest->enumTypeSym.enums ) {
+          return -1;
+        }
+        break;
+
+      case tkStruct:
+        dest->structSym.fields =
+            CopyFieldTable(source->structSym.fields);
+        if( dest->structSym.fields ) {
+          return -1;
+        }
+        break;
+
+      case tkUnion:
+        dest->unionSym.fields =
+            CopyFieldTable(source->unionSym.fields);
+        if( dest->unionSym.fields ) {
+          return -1;
+        }
+        break;
+
+      case tkImport:
+        dest->importSym.funcParams =
+            CopyParamTable(source->importSym.funcParams);
+        if( dest->importSym.funcParams ) {
+          return -1;
+        }
+        break;
+
+      case tkFunc:
+        dest->funcSym.params =
+            CopyParamTable(source->funcSym.params);
+        if( dest->funcSym.params ) {
+          return -1;
+        }
+        break;
+
+      case tkObject:
+        dest->objectSym.members =
+            CopyMemberTable(source->objectSym.members);
+        if( dest->objectSym.members ) {
+          return -1;
+        }
+        break;
+
+      case tkAbstract:
+        dest->abstractSym.baseInterfaces =
+            CopyIdentTable(source->abstractSym.baseInterfaces);
+        dest->abstractSym.methods =
+            CopyMethodTable(source->abstractSym.methods);
+        if( dest->abstractSym.baseInterfaces &&
+            dest->abstractSym.methods ) {
+          return -1;
+        }
+        FreeIdentTable( &dest->abstractSym.baseInterfaces );
+        FreeMethodTable( &dest->abstractSym.methods );
+        break;
+
+      case tkInterface:
+        dest->interfaceSym.baseInterfaces =
+          CopyIdentTable(source->interfaceSym.baseInterfaces);
+        dest->interfaceSym.methods =
+          CopyMethodTable(source->interfaceSym.methods);
+        if( dest->interfaceSym.baseInterfaces &&
+            dest->interfaceSym.methods) {
+          return -1;
+        }
+        FreeIdentTable( &dest->interfaceSym.baseInterfaces );
+        FreeMethodTable( &dest->interfaceSym.methods );
+        break;
+
+      case tkOperator:
+        dest->operatorSym.params =
+          CopyParamTable(source->operatorSym.params);
+        if( dest->operatorSym.params ) {
+          return -1;
+        }
+        break;
+      }
+    }
+
     return 0;
   }
 
