@@ -7,7 +7,7 @@
 #include <string.h>
 
 /*
- *  Declarations
+ *  System exit codes
  */
 
   // Enum names with redundant values for easy program exit code cross-reference
