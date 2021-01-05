@@ -1,13 +1,23 @@
 
-#include "keyarray.h"
-
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "keyarray.h"
+
 /*
- *  System exit codes
+ *  System declarations
+ */
+
+  int RunProgram( char* commandLine );
+
+  void Cleanup();
+
+  void ParseOptions( int argc, char* argv[] );
+
+/*
+ *  Origo system exit codes
  */
 
   // Enum names with redundant values for easy program exit code cross-reference
@@ -55,19 +65,8 @@
   } ErrorCodes;
 
 /*
- *  Global variables
+ *  Token declarations
  */
-
-  char baseName[FILENAME_MAX + 1] = {};
-
-  char retName[FILENAME_MAX + 1] = {};
-  char exeName[FILENAME_MAX + 1] = {};
-  char cName[FILENAME_MAX + 1] = {};
-  char headerName[FILENAME_MAX + 1] = {};
-
-  FILE* retFile = NULL;
-  FILE* cFile = NULL;
-  FILE* headerFile = NULL;
 
   typedef enum Token {
     // General tokens
@@ -290,30 +289,6 @@
         lastAssign = assignOr
   } Token;
 
-  typedef enum MemberAccessType {
-    accessImmutable = 0,
-      defaultAccess = accessImmutable,
-    accessMutable = 1,
-    accessInternal = 2
-  } MemberAccessType;
-
-  typedef struct Keyword {
-    char*    name;
-    unsigned token;
-  } Keyword;
-
-  typedef struct Operator {
-    char* text;
-    unsigned token;
-  } Operator;
-
-  typedef struct TypeSpec {
-    char typeName[1024];
-    unsigned ptrType;
-    unsigned baseType;
-    size_t indexCount;
-  } TypeSpec;
-
   typedef struct TokenVal {
     unsigned valType;
 
@@ -324,148 +299,23 @@
     };
   } TokenVal;
 
-  const Keyword keywordTable[] = {
-    "abstract", rsvdAbstract,
-    "bind",    rsvdBind,
-    "bool",    typeBool,
-    "break",   rsvdBreak,
-    "char",    typeChar,
-    "const",   rsvdConst,
-    "downto",  rsvdDownTo,
-    "echo",    rsvdEcho,
-    "echoln",  rsvdEchoLn,
-    "else",    rsvdElse,
-    "elseif",  rsvdElseIf,
-    "end",     rsvdEnd,
-    "endfor",  rsvdEndFor,
-    "endif",   rsvdEndIf,
-    "endwhile", rsvdEndWhile,
-    "enum",    rsvdEnum,
-    "exit",    rsvdExit,
-    "for",     rsvdFor,
-    "from",    rsvdFrom,
-    "func",    rsvdFunc,
-    "funcdecl", rsvdFuncDecl,
-    "goto",    rsvdGoto,
-    "if",      rsvdIf,
-    "immutable", rsvdImmutable,
-    "implements", rsvdImplements,
-    "import",  rsvdImport,
-    "in",      rsvdIn,
-    "inherits", rsvdInherits,
-    "int",     typeInt,
-    "int16",   typeInt16,
-    "int32",   typeInt32,
-    "int8",    typeInt8,
-    "interface", rsvdInterface,
-    "method",  rsvdMethod,
-    "mutable", rsvdMutable,
-    "next",    rsvdNext,
-    "object",  rsvdObject,
-    "operator", rsvdOperator,
-    "program", rsvdProgram,
-    "repeat",  rsvdRepeat,
-    "result",  rsvdResult,
-    "return",  rsvdReturn,
-    "run",     rsvdRun,
-    "self",    rsvdSelf,
-    "string",  typeString,
-    "struct",  typeStruct,
-    "then",    rsvdThen,
-    "to",      rsvdTo,
-    "type",    rsvdType,
-    "uint",    typeUint,
-    "uint16",  typeUint16,
-    "uint32",  typeUint32,
-    "uint8",   typeUint8,
-    "union",   typeUnion,
-    "var",     rsvdVar,
-    "when",    rsvdWhen,
-    "while",   rsvdWhile
-  };
-  const size_t keywordCount = sizeof(keywordTable) / sizeof(keywordTable[0]);
+/*
+ *  Keyword table declarations
+ */
 
-  const Operator operTable[] = {
-    "!",    unaryIsNot,
-    "!=",   opNotEq,
-    "#",    ptrRef,
-    "%",    opMod,
-    "%=",   assignMod,
-    "&",    opAnd,
-    "&&",   opAndIs,
-    "&=",   assignAnd,
-    "(",    tkLParen,
-    ")",    tkRParen,
-    "*",    opMul,
-    "*=",   assignMul,
-    "+",    opAdd,
-    "++",   opPostInc,
-    "+=",   assignAdd,
-    ",",    tkComma,
-    "-",    opSub,
-    "--",   opPostDec,
-    "-=",   assignSub,
-    ".",    tkDot,
-    "..",   tkDotDot,
-    "/",    opDiv,
-    "/=",   assignDiv,
-    ":",    tkColon,
-    "<",    opLT,
-    "<-<",  opSRol,
-    "<-<=", assignSRol,
-    "<<",   opShl,
-    "<<<",  opRol,
-    "<<<=", assignRol,
-    "<<=",  assignShl,
-    "<=",   opLTEq,
-    "=",    assignTo,
-    "==",   opEq,
-    ">",    opGT,
-    ">->",  opSRor,
-    ">->=", assignSRor,
-    ">=",   opGTEq,
-    ">>",   opShr,
-    ">>=",  assignShr,
-    ">>>",  opRor,
-    ">>>=", assignRor,
-    "@",    ptrData,
-    "[",    tkLBrace,
-    "[[",   tkLDoubleBrace,
-    "]",    tkRBrace,
-    "]]",   tkRDoubleBrace,
-    "^",    opXor,
-    "^=",   assignXor,
-    "|",    opOr,
-    "|=",   assignOr,
-    "|>>",  opSShr,
-    "|>>=", assignSShr,
-    "||",   opOrIs,
-    "~",    unaryNot,
-    "~=",   assignNot
-  };
-  const size_t operCount = sizeof(operTable) / sizeof(operTable[0]);
-
-  char programName[1024] = {};
-  int runDeclared = 0;
-
-  unsigned line = 1;
-  unsigned column = 1;
-
-  unsigned curLine = 1;
-  unsigned curColumn = 1;
-  unsigned curToken = 0;
-  char curTokenStr[1024] = {};
-  TokenVal curTokenVal = {};
-
-  unsigned nextLine = 1;
-  unsigned nextColumn = 1;
-  unsigned nextToken = 0;
-  char curCh = 0;
-  char nextCh = 0;
-  char nextTokenStr[1024] = {};
-  TokenVal nextTokenVal = {};
+  typedef struct Keyword {
+    char*    name;
+    unsigned token;
+  } Keyword;
 
 /* Type table declarations */
+
+  typedef struct TypeSpec {
+    char typeName[1024];
+    unsigned ptrType;
+    unsigned baseType;
+    size_t indexCount;
+  } TypeSpec;
 
   void FreeTypeSpec( TypeSpec* data );
   int CopyTypeSpec( TypeSpec* dest, TypeSpec* source );
@@ -587,6 +437,13 @@
       CopyIdent, FreeIdent )
 
 /* Object member variable table declarations */
+
+  typedef enum MemberAccessType {
+    accessImmutable = 0,
+      defaultAccess = accessImmutable,
+    accessMutable = 1,
+    accessInternal = 2
+  } MemberAccessType;
 
   typedef struct Member {
     unsigned typeID;
@@ -1362,11 +1219,29 @@
     return -1;
   }
 
-  int RunProgram( char* commandLine );
+/*
+ *  Parser declarations
+ */
 
-  void Cleanup();
+  char programName[1024] = {};
+  int runDeclared = 0;
 
-  void ParseOptions( int argc, char* argv[] );
+  unsigned line = 1;
+  unsigned column = 1;
+
+  unsigned curLine = 1;
+  unsigned curColumn = 1;
+  unsigned curToken = 0;
+  char curTokenStr[1024] = {};
+  TokenVal curTokenVal = {};
+
+  unsigned nextLine = 1;
+  unsigned nextColumn = 1;
+  unsigned nextToken = 0;
+  char curCh = 0;
+  char nextCh = 0;
+  char nextTokenStr[1024] = {};
+  TokenVal nextTokenVal = {};
 
   FILE* OpenRet( char* inRetName );
   void CloseRet( FILE** fileRet );
@@ -1446,6 +1321,89 @@
   void ParseTopLevel();
   void EndParse();
 
+
+/*
+ *  Main program
+ */
+
+  char baseName[FILENAME_MAX + 1] = {};
+
+  char retName[FILENAME_MAX + 1] = {};
+  char exeName[FILENAME_MAX + 1] = {};
+  char cName[FILENAME_MAX + 1] = {};
+  char headerName[FILENAME_MAX + 1] = {};
+
+  FILE* retFile = NULL;
+  FILE* cFile = NULL;
+  FILE* headerFile = NULL;
+
+  void Cleanup() {
+    CloseRet( &retFile );
+    CloseC( &cFile );
+    CloseHeader( &headerFile );
+  }
+
+int main( int argc, char* argv[] ) {
+  char commandLine[4096] = {};
+  int result;
+
+  // Initialize program
+  atexit( Cleanup );
+
+  // Process command line
+  ParseOptions( argc, argv );
+
+  // Open source file
+  retFile = OpenRet(retName);
+  if( retFile == 0 ) {
+    printf( "Error opening file %s\n", retName );
+    exit( errorOpeningRetFile );
+  }
+
+  // Create intermediate files
+  cFile = CreateC(cName);
+  if( cFile == 0 ) {
+    printf( "Error creating file %s\n", cName );
+    exit( errorCreatingCFile);
+  }
+
+  headerFile = CreateHeader(headerName);
+  if( headerFile == 0 ) {
+    printf( "Error creating file %s\n", headerName );
+    exit( errorCreatingHeaderFile );
+  }
+
+  // Parse Retineo source into C intermediate files
+  printf( "\nParsing %s...\n", retName );
+
+  BeginParse();
+  ParseProgramHeader();
+  ParseTopLevel();
+  EndParse();
+
+  CloseRet( &retFile );
+  CloseC( &cFile );
+  CloseHeader( &headerFile );
+
+  printf( "Done.\n" );
+
+  // Build executable from C intermediate files
+  printf( "\nBuilding %s from %s...\n", exeName, headerName );
+  snprintf( commandLine, sizeof(commandLine) - 1,
+    ".\\tcc\\tcc.exe -xc %s -o %s", cName, exeName );
+  result = RunProgram( commandLine );
+  if( result ) {
+    printf( "Error building intermediate source %s\n", cName );
+    exit( errorBuildingIntermediateSource );
+  }
+  printf( "Done.\n" );
+
+  // Release program resources
+  Cleanup();
+
+  return 0;
+}
+
 /*
  *  Implementations
  */
@@ -1458,12 +1416,6 @@
     }
 
     return errorLevel;
-  }
-
-  void Cleanup() {
-    CloseRet( &retFile );
-    CloseC( &cFile );
-    CloseHeader( &headerFile );
   }
 
   void ParseOptions( int argc, char* argv[] ) {
@@ -1859,6 +1811,75 @@
     return -1;
   }
 
+/*
+ *  Operator parser implementation
+ */
+
+  typedef struct Operator {
+    char* text;
+    unsigned token;
+  } Operator;
+
+  const Operator operTable[] = {
+    "!",    unaryIsNot,
+    "!=",   opNotEq,
+    "#",    ptrRef,
+    "%",    opMod,
+    "%=",   assignMod,
+    "&",    opAnd,
+    "&&",   opAndIs,
+    "&=",   assignAnd,
+    "(",    tkLParen,
+    ")",    tkRParen,
+    "*",    opMul,
+    "*=",   assignMul,
+    "+",    opAdd,
+    "++",   opPostInc,
+    "+=",   assignAdd,
+    ",",    tkComma,
+    "-",    opSub,
+    "--",   opPostDec,
+    "-=",   assignSub,
+    ".",    tkDot,
+    "..",   tkDotDot,
+    "/",    opDiv,
+    "/=",   assignDiv,
+    ":",    tkColon,
+    "<",    opLT,
+    "<-<",  opSRol,
+    "<-<=", assignSRol,
+    "<<",   opShl,
+    "<<<",  opRol,
+    "<<<=", assignRol,
+    "<<=",  assignShl,
+    "<=",   opLTEq,
+    "=",    assignTo,
+    "==",   opEq,
+    ">",    opGT,
+    ">->",  opSRor,
+    ">->=", assignSRor,
+    ">=",   opGTEq,
+    ">>",   opShr,
+    ">>=",  assignShr,
+    ">>>",  opRor,
+    ">>>=", assignRor,
+    "@",    ptrData,
+    "[",    tkLBrace,
+    "[[",   tkLDoubleBrace,
+    "]",    tkRBrace,
+    "]]",   tkRDoubleBrace,
+    "^",    opXor,
+    "^=",   assignXor,
+    "|",    opOr,
+    "|=",   assignOr,
+    "|>>",  opSShr,
+    "|>>=", assignSShr,
+    "||",   opOrIs,
+    "~",    unaryNot,
+    "~=",   assignNot
+  };
+  const size_t operCount = sizeof(operTable) / sizeof(operTable[0]);
+
   unsigned ReadOperator() {
     char operator[8] = {};
     size_t leftIndex;
@@ -1959,6 +1980,71 @@
 
     return curToken;
   }
+
+/*
+ *  Keyword table implementation
+ */
+
+  const Keyword keywordTable[] = {
+    "abstract", rsvdAbstract,
+    "bind",    rsvdBind,
+    "bool",    typeBool,
+    "break",   rsvdBreak,
+    "char",    typeChar,
+    "const",   rsvdConst,
+    "downto",  rsvdDownTo,
+    "echo",    rsvdEcho,
+    "echoln",  rsvdEchoLn,
+    "else",    rsvdElse,
+    "elseif",  rsvdElseIf,
+    "end",     rsvdEnd,
+    "endfor",  rsvdEndFor,
+    "endif",   rsvdEndIf,
+    "endwhile", rsvdEndWhile,
+    "enum",    rsvdEnum,
+    "exit",    rsvdExit,
+    "for",     rsvdFor,
+    "from",    rsvdFrom,
+    "func",    rsvdFunc,
+    "funcdecl", rsvdFuncDecl,
+    "goto",    rsvdGoto,
+    "if",      rsvdIf,
+    "immutable", rsvdImmutable,
+    "implements", rsvdImplements,
+    "import",  rsvdImport,
+    "in",      rsvdIn,
+    "inherits", rsvdInherits,
+    "int",     typeInt,
+    "int16",   typeInt16,
+    "int32",   typeInt32,
+    "int8",    typeInt8,
+    "interface", rsvdInterface,
+    "method",  rsvdMethod,
+    "mutable", rsvdMutable,
+    "next",    rsvdNext,
+    "object",  rsvdObject,
+    "operator", rsvdOperator,
+    "program", rsvdProgram,
+    "repeat",  rsvdRepeat,
+    "result",  rsvdResult,
+    "return",  rsvdReturn,
+    "run",     rsvdRun,
+    "self",    rsvdSelf,
+    "string",  typeString,
+    "struct",  typeStruct,
+    "then",    rsvdThen,
+    "to",      rsvdTo,
+    "type",    rsvdType,
+    "uint",    typeUint,
+    "uint16",  typeUint16,
+    "uint32",  typeUint32,
+    "uint8",   typeUint8,
+    "union",   typeUnion,
+    "var",     rsvdVar,
+    "when",    rsvdWhen,
+    "while",   rsvdWhile
+  };
+  const size_t keywordCount = sizeof(keywordTable) / sizeof(keywordTable[0]);
 
   unsigned FindKeyword( char* identifier ) {
     size_t leftIndex = 0;
@@ -3234,64 +3320,3 @@ printf( "ParseCondition() main loop: next closing parenthesis (\n" );
     // Write include guard end
     fprintf( headerFile, "\n#endif %s_H\n", baseName );
   }
-
-int main( int argc, char* argv[] ) {
-  char commandLine[4096] = {};
-  int result;
-
-  // Initialize program
-  atexit( Cleanup );
-
-  // Process command line
-  ParseOptions( argc, argv );
-
-  // Open source file
-  retFile = OpenRet(retName);
-  if( retFile == 0 ) {
-    printf( "Error opening file %s\n", retName );
-    exit( errorOpeningRetFile );
-  }
-
-  // Create intermediate files
-  cFile = CreateC(cName);
-  if( cFile == 0 ) {
-    printf( "Error creating file %s\n", cName );
-    exit( errorCreatingCFile);
-  }
-
-  headerFile = CreateHeader(headerName);
-  if( headerFile == 0 ) {
-    printf( "Error creating file %s\n", headerName );
-    exit( errorCreatingHeaderFile );
-  }
-
-  // Parse Retineo source into C intermediate files
-  printf( "\nParsing %s...\n", retName );
-
-  BeginParse();
-  ParseProgramHeader();
-  ParseTopLevel();
-  EndParse();
-
-  CloseRet( &retFile );
-  CloseC( &cFile );
-  CloseHeader( &headerFile );
-
-  printf( "Done.\n" );
-
-  // Build executable from C intermediate files
-  printf( "\nBuilding %s from %s...\n", exeName, headerName );
-  snprintf( commandLine, sizeof(commandLine) - 1,
-    ".\\tcc\\tcc.exe -xc %s -o %s", cName, exeName );
-  result = RunProgram( commandLine );
-  if( result ) {
-    printf( "Error building intermediate source %s\n", cName );
-    exit( errorBuildingIntermediateSource );
-  }
-  printf( "Done.\n" );
-
-  // Release program resources
-  Cleanup();
-
-  return 0;
-}
