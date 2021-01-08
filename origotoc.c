@@ -7,16 +7,6 @@
 #include "keyarray.h"
 
 /*
- *  System declarations
- */
-
-  int RunProgram( char* commandLine );
-
-  void Cleanup();
-
-  void ParseOptions( int argc, char* argv[] );
-
-/*
  *  Origo system exit codes
  */
 
@@ -63,6 +53,12 @@
     errorUnsupportedOperator = 39,
     expectedVariable = 40,
   } ErrorCodes;
+
+/*
+ *  System helper declarations
+ */
+
+  int RunProgram( char* commandLine );
 
 /*
  *  Token declarations
@@ -289,6 +285,17 @@
         lastAssign = assignOr
   } Token;
 
+/*
+ *  Type specifier table declarations
+ */
+
+  typedef struct TypeSpec {
+    char typeName[1024];
+    unsigned ptrType;
+    unsigned baseType;
+    size_t indexCount;
+  } TypeSpec;
+
   typedef struct TokenVal {
     unsigned valType;
 
@@ -298,24 +305,6 @@
       char valChar;
     };
   } TokenVal;
-
-/*
- *  Keyword table declarations
- */
-
-  typedef struct Keyword {
-    char*    name;
-    unsigned token;
-  } Keyword;
-
-/* Type table declarations */
-
-  typedef struct TypeSpec {
-    char typeName[1024];
-    unsigned ptrType;
-    unsigned baseType;
-    size_t indexCount;
-  } TypeSpec;
 
   void FreeTypeSpec( TypeSpec* data );
   int CopyTypeSpec( TypeSpec* dest, TypeSpec* source );
@@ -337,7 +326,9 @@
 
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize );
 
-/* Enum table declarations */
+/*
+ *  Enum table declarations
+ */
 
   typedef struct Enum {
     unsigned typeID;
@@ -362,7 +353,9 @@
   DECLARE_STRING_KEYARRAY_COPY( CopyEnumTable, EnumTable, Enum,
       CopyEnum, FreeEnum )
 
-/* Field table declarations */
+/*
+ *  Field table declarations
+ */
 
   typedef struct Field {
     unsigned typeID;
@@ -387,7 +380,9 @@
   DECLARE_STRING_KEYARRAY_COPY( CopyFieldTable, FieldTable, Field,
       CopyField, FreeField )
 
-/* Parameter table declarations */
+/*
+ *  Parameter table declarations
+ */
 
   typedef struct Param {
     unsigned typeID;
@@ -412,7 +407,9 @@
   DECLARE_STRING_KEYARRAY_COPY( CopyParamTable, ParamTable, Param,
       CopyParam, FreeParam )
 
-/* Identifier table declarations */
+/*
+ *  Identifier table declarations
+ */
 
   typedef struct Ident {
     unsigned index;
@@ -436,7 +433,9 @@
   DECLARE_STRING_KEYARRAY_COPY( CopyIdentTable, IdentTable, Ident,
       CopyIdent, FreeIdent )
 
-/* Object member variable table declarations */
+/*
+ *  Object member variable table declarations
+ */
 
   typedef enum MemberAccessType {
     accessImmutable = 0,
@@ -470,7 +469,9 @@
   DECLARE_STRING_KEYARRAY_COPY( CopyMemberTable, MemberTable, Member,
       CopyMember, FreeMember )
 
-/* Method table declarations */
+/*
+ *  Method table declarations
+ */
 
   typedef struct Method {
     unsigned typeID;
@@ -496,67 +497,81 @@
   DECLARE_STRING_KEYARRAY_COPY( CopyMethodTable, MethodTable, Method,
       CopyMethod, FreeMethod )
 
-/* Token table declarations */
+/*
+ *  Token table declarations
+ */
 
-  typedef struct ConstSym { // const
+  // const
+  typedef struct ConstSym {
      unsigned typeID;
    } ConstSym;
  
-   typedef struct EnumTypeSym { // enum
-     unsigned typeID;
-     EnumTable* enums;
-   } EnumTypeSym;
+  // enum
+  typedef struct EnumTypeSym {
+    unsigned typeID;
+    EnumTable* enums;
+  } EnumTypeSym;
  
-   typedef struct StructSym { // struct
-     FieldTable* fields;
-   } StructSym;
+  // struct
+  typedef struct StructSym {
+    FieldTable* fields;
+  } StructSym;
  
-   typedef struct UnionSym { // union
-     FieldTable* fields;
-   } UnionSym;
+  // union
+  typedef struct UnionSym {
+    FieldTable* fields;
+  } UnionSym;
  
-  typedef struct TypeSym { // type
+  // type
+  typedef struct TypeSym {
     unsigned typeID;
   } TypeSym;
 
-  typedef struct VarSym { // var
+  // var
+  typedef struct VarSym {
     unsigned typeID;
   } VarSym;
 
-  typedef struct ImportSym { // import
+  // import
+  typedef struct ImportSym {
     unsigned typeID;
     ParamTable* funcParams;
   } ImportSym;
 
-  typedef struct FuncSym { // func
+  // func/funcdecl
+  typedef struct FuncSym {
     unsigned typeID;
     ParamTable* params;
   } FuncSym;
 
-  typedef struct ObjectSym { // object
+  // object
+  typedef struct ObjectSym {
     char baseObject[128];
     MemberTable* members;
   } ObjectSym;
 
-  typedef struct AbstractSym { // abstract
+  // abstract
+  typedef struct AbstractSym {
     char objectName[128];
     IdentTable* baseInterfaces;
     MethodTable* methods;
   } AbstractSym;
 
-  typedef struct InterfaceSym { // interface
+  // interface
+  typedef struct InterfaceSym {
     char objectName[128];
     IdentTable* baseInterfaces;
     MethodTable* methods;
   } InterfaceSym;
 
-  typedef struct OperatorSym { // operator
+  // operator
+  typedef struct OperatorSym {
     ParamTable* params;
   } OperatorSym;
 
+  // Token specific fields
   typedef struct TokenSym {
     unsigned tokenCode;
-
     union {
       ConstSym constSym;
       EnumTypeSym enumTypeSym;
@@ -625,9 +640,258 @@
   int DeclareOperator( TokenTable* tokenTable, char* mangledName, ParamTable* paramTable );
   int LookupOperator( TokenTable* tokenTable, char* mangledName, OperatorSym* destSym );
 
-/* Token value implementation */
+/*
+ *  Parser declarations
+ */
 
-/* Type table implementation */
+  char programName[1024] = {};
+  int runDeclared = 0;
+
+  unsigned line = 1;
+  unsigned column = 1;
+
+  unsigned curLine = 1;
+  unsigned curColumn = 1;
+  unsigned curToken = 0;
+  char curTokenStr[1024] = {};
+  TokenVal curTokenVal = {};
+
+  unsigned nextLine = 1;
+  unsigned nextColumn = 1;
+  unsigned nextToken = 0;
+  char curCh = 0;
+  char nextCh = 0;
+  char nextTokenStr[1024] = {};
+  TokenVal nextTokenVal = {};
+
+  FILE* OpenRet( char* inRetName );
+  void CloseRet( FILE** fileRet );
+
+  FILE* CreateC( char* outCName );
+  void CloseC( FILE** fileC );
+
+  FILE* CreateHeader( char* outHeaderName );
+  void CloseHeader( FILE** fileHeader );
+
+  char ReadChar();
+
+  void SkipSpace();
+  void SkipSpaceAndComments();
+
+  int ReadIdent( char* destIdent, size_t destMaxLen );
+
+  int ReadBinNum( unsigned* destNum );
+  int ReadOctalNum( unsigned* destNum );
+  int ReadHexNum( unsigned* destNum );
+  int ReadNum( unsigned* destNum );
+  int ReadString( char* destString, size_t destMaxLen );
+  unsigned ReadOperator();
+
+  unsigned GetToken();
+  unsigned FindKeyword( char* identifier );
+
+  void ParseTypeSpec( TypeSpec* destSpec );
+
+  void BeginParse();
+  void ParseProgramHeader();
+  void ParseConstDecl();
+  void ParseEnumDecl();
+  void ParseStructDecl();
+  void ParseUnionDecl();
+  void ParseTypeDecl();
+  void ParseGlobalVarBlock();
+  void ParseImportDecl();
+  void ParseFuncDecl();
+  void ParseFuncCall();
+  void ParseMethodCall();
+  void ParseBind();
+  void ParseVarRef();
+  void ParseCondition();
+  void ParseIf();
+  void ParseFuncThen();
+  void ParseMethodThen();
+  void ParseThen();
+  void ParseElseIf();
+  void ParseElse();
+  void ParseEndIf();
+  void ParseForIn();
+  void ParseForToDownTo();
+  void ParseFor();
+  void ParseEndFor();
+  void ParseEcho();
+  void ParseEchoLn();
+  void ParseRepeat();
+  void ParseWhen();
+  void ParseWhile();
+  void ParseEndWhile();
+  void ParseLabelDecl();
+  void ParseLocalVarBlock();
+  void ParseGoto();
+  void ParseExit();
+  int ParseFuncStatement();
+  int ParseMethodStatement();
+  int ParseStatement();
+  void ParseFunc();
+  void ParseObjectDecl();
+  void ParseAbstractDecl();
+  void ParseInterfaceDecl();
+  void ParseMethod();
+  void ParseOperatorFunc();
+  void ParseRun();
+  void ParseEndRun();
+  void ParseTopLevel();
+  void EndParse();
+
+
+/*
+ *  Main program
+ */
+
+  char baseName[FILENAME_MAX + 1] = {};
+
+  char retName[FILENAME_MAX + 1] = {};
+  char exeName[FILENAME_MAX + 1] = {};
+  char cName[FILENAME_MAX + 1] = {};
+  char headerName[FILENAME_MAX + 1] = {};
+
+  FILE* retFile = NULL;
+  FILE* cFile = NULL;
+  FILE* headerFile = NULL;
+
+  void ParseOptions( int argc, char* argv[] ) {
+    char* fileExt = NULL;
+
+    // Validate parameter count
+    if( (argc < 2) || (argc > 3) ) {
+      printf( "Origo to C Alpha - Copyright 2020 Orlando Llanes\n" );
+      printf( "\nusage: origotoc source[.ret] [binary[.exe]]\n" );
+      exit(errorInvalidCommandline);
+    }
+
+    // Determine the base file name without the file extension
+    strncpy( baseName, argv[1], sizeof(baseName) );
+    fileExt = strrchr(baseName, '.');
+    if( fileExt ) {
+      memset( fileExt, 0, strlen(fileExt) );
+    }
+
+    // Determine the Retineo source file name
+    strncpy( retName, argv[1], sizeof(retName) );
+    fileExt = strrchr(retName, '.');
+    if( fileExt == NULL ) {
+      strncat( retName, ".ret", sizeof(retName) - 1 );
+    } else if( strlen(fileExt) == 1 ) {
+      *fileExt = '\0';
+    }
+
+    // Determine the executable file name
+    if( argc == 3 ) {
+      strncpy( exeName, argv[2], sizeof(exeName) );
+    } else {
+      strncpy( exeName, baseName, sizeof(exeName) );
+    }
+    fileExt = strrchr(exeName, '.');
+    if( fileExt == NULL ) {
+      strncat( exeName, ".exe", sizeof(exeName) - 1 );
+    } else if( strlen(fileExt) == 1 ) {
+      strncat( exeName, "exe", sizeof(exeName) - 1 );
+    }
+
+    // Set the C file name
+    strncpy( cName, baseName, sizeof(cName) );
+    strncat( cName, ".rgc", sizeof(cName) - 1 );
+
+    // Set the C Header file name
+    strncpy( headerName, baseName, sizeof(headerName) );
+    strncat( headerName, ".rgh", sizeof(headerName) - 1 );
+  }
+
+  void Cleanup() {
+    ///TODO: Release token table
+    CloseRet( &retFile );
+    CloseC( &cFile );
+    CloseHeader( &headerFile );
+  }
+
+int main( int argc, char* argv[] ) {
+  char commandLine[4096] = {};
+  int result;
+
+  // Initialize program
+  atexit( Cleanup );
+
+  // Process command line
+  ParseOptions( argc, argv );
+
+  // Open source file
+  retFile = OpenRet(retName);
+  if( retFile == 0 ) {
+    printf( "Error opening file %s\n", retName );
+    exit( errorOpeningRetFile );
+  }
+
+  // Create intermediate files
+  cFile = CreateC(cName);
+  if( cFile == 0 ) {
+    printf( "Error creating file %s\n", cName );
+    exit( errorCreatingCFile);
+  }
+
+  headerFile = CreateHeader(headerName);
+  if( headerFile == 0 ) {
+    printf( "Error creating file %s\n", headerName );
+    exit( errorCreatingHeaderFile );
+  }
+
+  // Parse Retineo source into C intermediate files
+  printf( "\nParsing %s...\n", retName );
+
+  BeginParse();
+  ParseProgramHeader();
+  ParseTopLevel();
+  EndParse();
+
+  CloseRet( &retFile );
+  CloseC( &cFile );
+  CloseHeader( &headerFile );
+
+  printf( "Done.\n" );
+
+  // Build executable from C intermediate files
+  printf( "\nBuilding %s from %s...\n", exeName, headerName );
+  snprintf( commandLine, sizeof(commandLine) - 1,
+    ".\\tcc\\tcc.exe -xc %s -o %s", cName, exeName );
+  result = RunProgram( commandLine );
+  if( result ) {
+    printf( "Error building intermediate source %s\n", cName );
+    exit( errorBuildingIntermediateSource );
+  }
+  printf( "Done.\n" );
+
+  // Release program resources
+  Cleanup();
+
+  return 0;
+}
+
+/*
+ *  System helper implementation
+ */
+
+  int RunProgram( char* commandLine ) {
+    int errorLevel = -1;
+
+    if( commandLine && (*commandLine) ) {
+      errorLevel = system(commandLine);
+    }
+
+    return errorLevel;
+  }
+
+
+/*
+ *  Type specifier table implementation
+ */
 
   void FreeTypeSpec( TypeSpec* data ) {
   }
@@ -660,7 +924,9 @@
     return 0;
   }
 
-/* Enum table implementation */
+/*
+ *  Enum table implementation
+ */
 
   void FreeEnum( Enum* data ) {
   }
@@ -669,7 +935,9 @@
     return -1;
   }
 
-/* Field table implementation */
+/*
+ *  Field table implementation
+ */
 
   void FreeField( Field* data ) {
   }
@@ -678,7 +946,9 @@
     return -1;
   }
 
-/* Parameter table implementation */
+/*
+ *  Parameter table implementation
+ */
 
   void FreeParam( Param* data ) {
   }
@@ -687,16 +957,9 @@
     return -1;
   }
 
-/* Object member variable table declarations */
-
-  void FreeMember( Member* data ) {
-  }
-
-  int CopyMember( Member* dest, Member* source ) {
-    return -1;
-  }
-
-/* Identifier table implementation */
+/*
+ *  Identifier table implementation
+ */
 
   void FreeIdent( Ident* data ) {
   }
@@ -705,7 +968,20 @@
     return -1;
   }
 
-/* Method table implementation */
+/*
+ *  Object member variable table declarations
+ */
+
+  void FreeMember( Member* data ) {
+  }
+
+  int CopyMember( Member* dest, Member* source ) {
+    return -1;
+  }
+
+/*
+ *  Method table implementation
+ */
 
   void FreeMethod( Method* data ) {
     if( data ) {
@@ -724,7 +1000,9 @@
     return 0;
   }
 
-/* Token Table implementation */
+/*
+ *  Token Table implementation
+ */
 
   void FreeTokenSym( TokenSym* data ) {
     if( data == NULL ) {
@@ -1219,252 +1497,7 @@
     return -1;
   }
 
-/*
- *  Parser declarations
- */
-
-  char programName[1024] = {};
-  int runDeclared = 0;
-
-  unsigned line = 1;
-  unsigned column = 1;
-
-  unsigned curLine = 1;
-  unsigned curColumn = 1;
-  unsigned curToken = 0;
-  char curTokenStr[1024] = {};
-  TokenVal curTokenVal = {};
-
-  unsigned nextLine = 1;
-  unsigned nextColumn = 1;
-  unsigned nextToken = 0;
-  char curCh = 0;
-  char nextCh = 0;
-  char nextTokenStr[1024] = {};
-  TokenVal nextTokenVal = {};
-
-  FILE* OpenRet( char* inRetName );
-  void CloseRet( FILE** fileRet );
-
-  FILE* CreateC( char* outCName );
-  void CloseC( FILE** fileC );
-
-  FILE* CreateHeader( char* outHeaderName );
-  void CloseHeader( FILE** fileHeader );
-
-  char ReadChar();
-
-  void SkipSpace();
-  void SkipSpaceAndComments();
-
-  int ReadIdent( char* destIdent, size_t destMaxLen );
-
-  int ReadBinNum( unsigned* destNum );
-  int ReadOctalNum( unsigned* destNum );
-  int ReadHexNum( unsigned* destNum );
-  int ReadNum( unsigned* destNum );
-  int ReadString( char* destString, size_t destMaxLen );
-  unsigned ReadOperator();
-
-  unsigned GetToken();
-  unsigned FindKeyword( char* identifier );
-
-  void ParseTypeSpec( TypeSpec* destSpec );
-
-  void BeginParse();
-  void ParseProgramHeader();
-  void ParseConstDecl();
-  void ParseEnumDecl();
-  void ParseStructDecl();
-  void ParseUnionDecl();
-  void ParseTypeDecl();
-  void ParseGlobalVarBlock();
-  void ParseImportDecl();
-  void ParseFuncDecl();
-  void ParseFuncCall();
-  void ParseMethodCall();
-  void ParseBind();
-  void ParseVarRef();
-  void ParseCondition();
-  void ParseIf();
-  void ParseFuncThen();
-  void ParseMethodThen();
-  void ParseThen();
-  void ParseElseIf();
-  void ParseElse();
-  void ParseEndIf();
-  void ParseForIn();
-  void ParseForToDownTo();
-  void ParseFor();
-  void ParseEndFor();
-  void ParseEcho();
-  void ParseEchoLn();
-  void ParseRepeat();
-  void ParseWhen();
-  void ParseWhile();
-  void ParseEndWhile();
-  void ParseLabelDecl();
-  void ParseLocalVarBlock();
-  void ParseGoto();
-  void ParseExit();
-  int ParseFuncStatement();
-  int ParseMethodStatement();
-  int ParseStatement();
-  void ParseFunc();
-  void ParseObjectDecl();
-  void ParseAbstractDecl();
-  void ParseInterfaceDecl();
-  void ParseMethod();
-  void ParseOperatorFunc();
-  void ParseRun();
-  void ParseEndRun();
-  void ParseTopLevel();
-  void EndParse();
-
-
-/*
- *  Main program
- */
-
-  char baseName[FILENAME_MAX + 1] = {};
-
-  char retName[FILENAME_MAX + 1] = {};
-  char exeName[FILENAME_MAX + 1] = {};
-  char cName[FILENAME_MAX + 1] = {};
-  char headerName[FILENAME_MAX + 1] = {};
-
-  FILE* retFile = NULL;
-  FILE* cFile = NULL;
-  FILE* headerFile = NULL;
-
-  void Cleanup() {
-    CloseRet( &retFile );
-    CloseC( &cFile );
-    CloseHeader( &headerFile );
-  }
-
-int main( int argc, char* argv[] ) {
-  char commandLine[4096] = {};
-  int result;
-
-  // Initialize program
-  atexit( Cleanup );
-
-  // Process command line
-  ParseOptions( argc, argv );
-
-  // Open source file
-  retFile = OpenRet(retName);
-  if( retFile == 0 ) {
-    printf( "Error opening file %s\n", retName );
-    exit( errorOpeningRetFile );
-  }
-
-  // Create intermediate files
-  cFile = CreateC(cName);
-  if( cFile == 0 ) {
-    printf( "Error creating file %s\n", cName );
-    exit( errorCreatingCFile);
-  }
-
-  headerFile = CreateHeader(headerName);
-  if( headerFile == 0 ) {
-    printf( "Error creating file %s\n", headerName );
-    exit( errorCreatingHeaderFile );
-  }
-
-  // Parse Retineo source into C intermediate files
-  printf( "\nParsing %s...\n", retName );
-
-  BeginParse();
-  ParseProgramHeader();
-  ParseTopLevel();
-  EndParse();
-
-  CloseRet( &retFile );
-  CloseC( &cFile );
-  CloseHeader( &headerFile );
-
-  printf( "Done.\n" );
-
-  // Build executable from C intermediate files
-  printf( "\nBuilding %s from %s...\n", exeName, headerName );
-  snprintf( commandLine, sizeof(commandLine) - 1,
-    ".\\tcc\\tcc.exe -xc %s -o %s", cName, exeName );
-  result = RunProgram( commandLine );
-  if( result ) {
-    printf( "Error building intermediate source %s\n", cName );
-    exit( errorBuildingIntermediateSource );
-  }
-  printf( "Done.\n" );
-
-  // Release program resources
-  Cleanup();
-
-  return 0;
-}
-
-/*
- *  Implementations
- */
-
-  int RunProgram( char* commandLine ) {
-    int errorLevel = -1;
-
-    if( commandLine && (*commandLine) ) {
-      errorLevel = system(commandLine);
-    }
-
-    return errorLevel;
-  }
-
-  void ParseOptions( int argc, char* argv[] ) {
-    char* fileExt = NULL;
-
-    // Validate parameter count
-    if( (argc < 2) || (argc > 3) ) {
-      printf( "Origo to C Alpha - Copyright 2020 Orlando Llanes\n" );
-      printf( "\nusage: origotoc source[.ret] [binary[.exe]]\n" );
-      exit(errorInvalidCommandline);
-    }
-
-    // Determine the base file name without the file extension
-    strncpy( baseName, argv[1], sizeof(baseName) );
-    fileExt = strrchr(baseName, '.');
-    if( fileExt ) {
-      memset( fileExt, 0, strlen(fileExt) );
-    }
-
-    // Determine the Retineo source file name
-    strncpy( retName, argv[1], sizeof(retName) );
-    fileExt = strrchr(retName, '.');
-    if( fileExt == NULL ) {
-      strncat( retName, ".ret", sizeof(retName) - 1 );
-    } else if( strlen(fileExt) == 1 ) {
-      *fileExt = '\0';
-    }
-
-    // Determine the executable file name
-    if( argc == 3 ) {
-      strncpy( exeName, argv[2], sizeof(exeName) );
-    } else {
-      strncpy( exeName, baseName, sizeof(exeName) );
-    }
-    fileExt = strrchr(exeName, '.');
-    if( fileExt == NULL ) {
-      strncat( exeName, ".exe", sizeof(exeName) - 1 );
-    } else if( strlen(fileExt) == 1 ) {
-      strncat( exeName, "exe", sizeof(exeName) - 1 );
-    }
-
-    // Set the C file name
-    strncpy( cName, baseName, sizeof(cName) );
-    strncat( cName, ".rgc", sizeof(cName) - 1 );
-
-    // Set the C Header file name
-    strncpy( headerName, baseName, sizeof(headerName) );
-    strncat( headerName, ".rgh", sizeof(headerName) - 1 );
-  }
+/* Parser implementation */
 
   FILE* OpenRet( char* inRetName ) {
     FILE* fileRet = NULL;
@@ -1811,9 +1844,7 @@ int main( int argc, char* argv[] ) {
     return -1;
   }
 
-/*
- *  Operator parser implementation
- */
+  /* Operator parser implementation */
 
   typedef struct Operator {
     char* text;
@@ -1981,9 +2012,11 @@ int main( int argc, char* argv[] ) {
     return curToken;
   }
 
-/*
- *  Keyword table implementation
- */
+  /* Keyword table implementation */
+  typedef struct Keyword {
+    char*    name;
+    unsigned token;
+  } Keyword;
 
   const Keyword keywordTable[] = {
     "abstract", rsvdAbstract,
