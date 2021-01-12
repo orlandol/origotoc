@@ -7,6 +7,21 @@
 #include "keyarray.h"
 
 /*
+ *  Origo configuration options
+ */
+
+  #define MAXLEN_TOKENSTR 2047
+
+  #define MAXLEN_IDENT 63
+  #define MAXLEN_PAIRED_IDENT 126
+  #define MAXLEN_QUALIFIED_IDENT (MAXLEN_TOKENSTR)
+
+  #define MAXLEN_MANGLED_TYPESPEC ((MAXLEN_IDENT * 2) + 1)
+  #define MAXLEN_MANGLED_OPERATOR (((MAXLEN_IDENT * 3) + 2)
+
+  #define MAXLEN_OPERATOR 4
+
+/*
  *  Origo system exit codes
  */
 
@@ -52,6 +67,7 @@
     expectedUnaryOperatorOrOperand = 38,
     errorUnsupportedOperator = 39,
     expectedVariable = 40,
+    errorInternal = 41,
   } ErrorCodes;
 
 /*
@@ -290,7 +306,7 @@
  */
 
   typedef struct TypeSpec {
-    char typeName[1024];
+    char typeName[MAXLEN_MANGLED_TYPESPEC + 1];
     unsigned ptrType;
     unsigned baseType;
     size_t indexCount;
@@ -546,20 +562,20 @@
 
   // object
   typedef struct ObjectSym {
-    char baseObject[128];
+    char baseObject[MAXLEN_IDENT + 1];
     MemberTable* members;
   } ObjectSym;
 
   // abstract
   typedef struct AbstractSym {
-    char objectName[128];
+    char objectName[MAXLEN_IDENT + 1];
     IdentTable* baseInterfaces;
     MethodTable* methods;
   } AbstractSym;
 
   // interface
   typedef struct InterfaceSym {
-    char objectName[128];
+    char objectName[MAXLEN_IDENT + 1];
     IdentTable* baseInterfaces;
     MethodTable* methods;
   } InterfaceSym;
@@ -644,7 +660,7 @@
  *  Parser declarations
  */
 
-  char programName[1024] = {};
+  char programName[MAXLEN_IDENT + 1] = {};
   int runDeclared = 0;
 
   unsigned line = 1;
@@ -653,7 +669,7 @@
   unsigned curLine = 1;
   unsigned curColumn = 1;
   unsigned curToken = 0;
-  char curTokenStr[1024] = {};
+  char curTokenStr[MAXLEN_TOKENSTR + 1] = {};
   TokenVal curTokenVal = {};
 
   unsigned nextLine = 1;
@@ -661,7 +677,7 @@
   unsigned nextToken = 0;
   char curCh = 0;
   char nextCh = 0;
-  char nextTokenStr[1024] = {};
+  char nextTokenStr[MAXLEN_TOKENSTR + 1] = {};
   TokenVal nextTokenVal = {};
 
   FILE* OpenRet( char* inRetName );
@@ -758,6 +774,11 @@
   FILE* cFile = NULL;
   FILE* headerFile = NULL;
 
+  TokenTable* tokenTable = NULL;
+  TypeTable* typeTable = NULL;
+
+  unsigned newTypeID = 0;
+
   void ParseOptions( int argc, char* argv[] ) {
     char* fileExt = NULL;
 
@@ -769,45 +790,47 @@
     }
 
     // Determine the base file name without the file extension
-    strncpy( baseName, argv[1], sizeof(baseName) );
+    strncpy( baseName, argv[1], FILENAME_MAX + 1 );
     fileExt = strrchr(baseName, '.');
     if( fileExt ) {
       memset( fileExt, 0, strlen(fileExt) );
     }
 
     // Determine the Retineo source file name
-    strncpy( retName, argv[1], sizeof(retName) );
+    strncpy( retName, argv[1], FILENAME_MAX + 1 );
     fileExt = strrchr(retName, '.');
     if( fileExt == NULL ) {
-      strncat( retName, ".ret", sizeof(retName) - 1 );
+      strncat( retName, ".ret", FILENAME_MAX + 1 );
     } else if( strlen(fileExt) == 1 ) {
       *fileExt = '\0';
     }
 
     // Determine the executable file name
     if( argc == 3 ) {
-      strncpy( exeName, argv[2], sizeof(exeName) );
+      strncpy( exeName, argv[2], FILENAME_MAX + 1 );
     } else {
-      strncpy( exeName, baseName, sizeof(exeName) );
+      strncpy( exeName, baseName, FILENAME_MAX + 1 );
     }
     fileExt = strrchr(exeName, '.');
     if( fileExt == NULL ) {
-      strncat( exeName, ".exe", sizeof(exeName) - 1 );
+      strncat( exeName, ".exe", FILENAME_MAX );
     } else if( strlen(fileExt) == 1 ) {
-      strncat( exeName, "exe", sizeof(exeName) - 1 );
+      strncat( exeName, "exe", FILENAME_MAX );
     }
 
     // Set the C file name
-    strncpy( cName, baseName, sizeof(cName) );
-    strncat( cName, ".rgc", sizeof(cName) - 1 );
+    strncpy( cName, baseName, FILENAME_MAX + 1 );
+    strncat( cName, ".rgc", FILENAME_MAX );
 
     // Set the C Header file name
-    strncpy( headerName, baseName, sizeof(headerName) );
-    strncat( headerName, ".rgh", sizeof(headerName) - 1 );
+    strncpy( headerName, baseName, FILENAME_MAX + 1 );
+    strncat( headerName, ".rgh", FILENAME_MAX );
   }
 
   void Cleanup() {
-    ///TODO: Release token table
+    FreeTokenTable( &tokenTable );
+    FreeTypeTable( &typeTable );
+
     CloseRet( &retFile );
     CloseC( &cFile );
     CloseHeader( &headerFile );
@@ -858,9 +881,9 @@ int main( int argc, char* argv[] ) {
   printf( "Done.\n" );
 
   // Build executable from C intermediate files
-  printf( "\nBuilding %s from %s...\n", exeName, headerName );
-  snprintf( commandLine, sizeof(commandLine) - 1,
-    ".\\tcc\\tcc.exe -xc %s -o %s", cName, exeName );
+  printf( "\nBuilding %s from %s/%s...\n", exeName, cName, headerName );
+  snprintf( commandLine, FILENAME_MAX,
+    ".\\tcc\\tcc.exe -xc %s -o %s -Wall", cName, exeName );
   result = RunProgram( commandLine );
   if( result ) {
     printf( "Error building intermediate source %s\n", cName );
@@ -902,14 +925,14 @@ int main( int argc, char* argv[] ) {
 
   int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize ) {
     static const char* typeString[] = { "", "u", "i", "e", "s", "u", "o" };
-    char mangledResult[256] = {};
+    char mangledResult[MAXLEN_MANGLED_TYPESPEC + 1] = {};
     int mangledLength;
 
     if( !(typeSpec && destBuffer && destSize) ) {
       return 0;
     }
 
-    mangledLength = snprintf( mangledResult, sizeof(mangledResult) - 1, "%s%s%s%s",
+    mangledLength = snprintf( mangledResult, MAXLEN_MANGLED_TYPESPEC, "%s%s%s%s",
       typeSpec->ptrType == ptrData ? "p" : typeSpec->ptrType == ptrRef ? "r" : "",
       (typeSpec->baseType - typeUint + 1) <= (typeObject - typeUint + 1) ? typeString[typeSpec->baseType - typeUint + 1] : "",
       (typeSpec->baseType - typeEnum + 1) <= (typeObject - typeEnum + 1) ? typeSpec->typeName : "",
@@ -1912,7 +1935,7 @@ int main( int argc, char* argv[] ) {
   const size_t operCount = sizeof(operTable) / sizeof(operTable[0]);
 
   unsigned ReadOperator() {
-    char operator[8] = {};
+    char operator[MAXLEN_OPERATOR + 1] = {};
     size_t leftIndex;
     size_t operIndex;
     size_t rightIndex;
@@ -1925,7 +1948,7 @@ int main( int argc, char* argv[] ) {
     }
 
     do {
-      if( operLength > 5 ) {
+      if( operLength > MAXLEN_OPERATOR ) {
         break;
       }
 
@@ -2176,6 +2199,18 @@ if( curToken != tkIdent ) { // Temporary line until token table is implemented
   }
 
   void BeginParse() {
+    tokenTable = CreateTokenTable(0);
+    if( tokenTable == NULL ) {
+      printf( "Unable to create token table\n" );
+      exit( errorInternal );
+    }
+
+    typeTable = CreateTypeTable(0);
+    if( typeTable == NULL ) {
+      printf( "Unable to create type table\n" );
+      exit( errorInternal );
+    }
+
     // Pre-read first two characters
     ReadChar();
     ReadChar();
@@ -2295,19 +2330,34 @@ if( curToken != tkIdent ) { // Temporary line until token table is implemented
   /*
    *  type TYPESPEC IDENT
    */
+
   void ParseTypeDecl() {
     TypeSpec typeSpec = {};
     unsigned keywordToken;
+    unsigned curTypeID = 0;
+
     GetToken(); // Skip keyword type
 
     memset( &typeSpec, 0, sizeof(typeSpec) );
     ParseTypeSpec( &typeSpec );
+
+    if( newTypeID == ((unsigned)-1) ) {
+      printf( "[L%u,C%u] Too many types declared\n", curLine, curColumn );
+      exit( errorInternal );
+    }
+    curTypeID = ++newTypeID;
+
+    if( InsertTypeSpec(typeTable, curTypeID, &typeSpec) == 0 ) {
+      printf( "[L%u,C%u] Internal error adding typespec to type table\n", curLine, curColumn );
+      exit( errorInternal );
+    }
 
     keywordToken = FindKeyword(curTokenStr);
     if( (curToken != tkIdent) || keywordToken ) {
       printf( "[L%u,C%u] Expected undeclared identifier\n", curLine, curColumn );
       exit( expectedUndeclaredIdentifier );
     }
+
     GetToken(); // Skip identifier
   }
 
@@ -3351,5 +3401,5 @@ printf( "ParseCondition() main loop: next closing parenthesis (\n" );
     }
 
     // Write include guard end
-    fprintf( headerFile, "\n#endif %s_H\n", baseName );
+    fprintf( headerFile, "\n#endif\n" );
   }
