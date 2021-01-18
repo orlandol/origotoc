@@ -13,11 +13,11 @@
   #define MAXLEN_TOKENSTR 2047
 
   #define MAXLEN_IDENT 63
-  #define MAXLEN_PAIRED_IDENT 126
+  #define MAXLEN_PAIRED_IDENT (((MAXLEN_IDENT) * 2) + 1)
   #define MAXLEN_QUALIFIED_IDENT (MAXLEN_TOKENSTR)
 
-  #define MAXLEN_MANGLED_TYPESPEC ((MAXLEN_IDENT * 2) + 1)
-  #define MAXLEN_MANGLED_OPERATOR (((MAXLEN_IDENT * 3) + 2)
+  #define MAXLEN_MANGLED_TYPESPEC (((MAXLEN_IDENT) * 2) + 1)
+  #define MAXLEN_MANGLED_OPERATOR ((((MAXLEN_IDENT) * 3) + 2)
 
   #define MAXLEN_OPERATOR 4
 
@@ -340,7 +340,7 @@
   DECLARE_UINT_KEYARRAY_COPY( CopyTypeTable, TypeTable, TypeSpec,
       CopyTypeSpec, FreeTypeSpec )
 
-  int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize );
+  int MangleTypeSpec( TypeSpec* typeSpec, char* destBuffer, size_t destSize );
 
 /*
  *  Enum table declarations
@@ -923,7 +923,7 @@ int main( int argc, char* argv[] ) {
     return -1;
   }
 
-  int MangleName( TypeSpec* typeSpec, char* destBuffer, size_t destSize ) {
+  int MangleTypeSpec( TypeSpec* typeSpec, char* destBuffer, size_t destSize ) {
     static const char* typeString[] = { "", "u", "i", "e", "s", "u", "o" };
     char mangledResult[MAXLEN_MANGLED_TYPESPEC + 1] = {};
     int mangledLength;
@@ -938,6 +938,7 @@ int main( int argc, char* argv[] ) {
       (typeSpec->baseType - typeEnum + 1) <= (typeObject - typeEnum + 1) ? typeSpec->typeName : "",
       typeSpec->indexCount ? "a" : ""
     );
+printf( "MangleTypeSpec(): mangledResult == %s; mangledLength == %u\n", mangledResult, mangledLength );
 
     if( (mangledLength > 0) && (mangledLength < destSize) ) {
       memcpy( destBuffer, mangledResult, mangledLength + 1 );
@@ -2133,6 +2134,7 @@ int main( int argc, char* argv[] ) {
   void ParseTypeSpec( TypeSpec* destSpec ) {
     TypeSpec tempSpec = {};
     unsigned keywordToken;
+printf( "ParseTypeSpec()\n" );
 
     if( retFile == NULL ) {
       printf( "Error source file not open\n" );
@@ -2332,6 +2334,7 @@ if( curToken != tkIdent ) { // Temporary line until token table is implemented
    */
 
   void ParseTypeDecl() {
+    char mangledName[MAXLEN_MANGLED_TYPESPEC] = {};
     TypeSpec typeSpec = {};
     unsigned keywordToken;
     unsigned curTypeID = 0;
@@ -2351,6 +2354,13 @@ if( curToken != tkIdent ) { // Temporary line until token table is implemented
       printf( "[L%u,C%u] Internal error adding typespec to type table\n", curLine, curColumn );
       exit( errorInternal );
     }
+
+//  int MangleTypeSpec( TypeSpec* typeSpec, char* destBuffer, size_t destSize )
+    if( MangleTypeSpec(&typeSpec, mangledName, MAXLEN_MANGLED_TYPESPEC) == 0 ) {
+      printf( "[L%u,C%u] Error mangling type specification\n", curLine, curColumn );
+      exit( errorInternal );
+    }
+printf( "ParseTypeDecl(): mangledName == %s\n", mangledName );
 
     keywordToken = FindKeyword(curTokenStr);
     if( (curToken != tkIdent) || keywordToken ) {
@@ -3328,6 +3338,7 @@ printf( "ParseCondition() main loop: next closing parenthesis (\n" );
       }
 
       if( keywordToken == rsvdType ) {
+printf( "ParseTopLevel(): rsvdType; line == %u; column == %u\n", curLine, curColumn );
         ParseTypeDecl();
         continue;
       }
