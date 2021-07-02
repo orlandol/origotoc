@@ -1,0 +1,60 @@
+
+%source {
+  // begin strnlen copied from packcc.c source file, as a workaround for TinyCC
+  static size_t strnlen(const char *str, size_t maxlen) {
+    size_t i;
+    for( i = 0; (i < maxlen) && str[i]; i++ ) {
+    };
+    return i;
+  }
+  // end
+}
+
+programheader <-
+  <"program"> _ <IDENT> {
+    printf( "[%s][%s]\n", $1, $2 );
+  }
+/ toplevel
+
+toplevel <-
+  runBlock
+/ EOL
+/ EOF
+
+runBlock <- "run" {
+  printf( "RUN\n" );
+}
+/ (STATEMENT)
+/ "end" {
+  printf( "END\n" );
+}
+
+STATEMENT <-
+  exit_statement
+
+exit_statement <-
+  _ 'exit' _ '(' _ <INTEGER> _ ')' {
+    printf( "EXIT(%s)\n", $1 );
+  }
+
+_ <- [ \t]*
+EOL <- '\n' / '\r\n' / '\r'
+EOF <- !. {
+  exit(0);
+}
+
+IDENT <- [a-zA-Z_][a-zA-Z0-9_]*
+INTEGER <- [0-9]+
+
+%%
+
+int main( int argc, char* argv[] ) {
+  pcc_context_t *ctx = pcc_create(NULL);
+
+  while( pcc_parse(ctx, NULL) ) {
+  };
+
+  pcc_destroy( ctx );
+
+  return 0;
+}

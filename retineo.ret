@@ -1,0 +1,6 @@
+program retineo
+
+run
+  exit( 1234 )
+  exit( 4321 )
+end
