@@ -8,43 +8,51 @@
     return i;
   }
   // end
+
+/*
+  static const char *dbg_str[] = { "Evaluating rule", "Matched rule", "Abandoning rule" };
+  #define PCC_DEBUG(event, rule, level, pos, buffer, length) \
+    fprintf(stderr, "%*s%s %s @%d [%.*s]\n", level * 2, "", dbg_str[event], rule, pos, length, buffer);
+*/
 }
 
-programheader <-
-  <"program"> _ <IDENT> {
-    printf( "[%s][%s]\n", $1, $2 );
+source_header <-
+  (_'program' _ <IDENT> _ (toplevel)*) _ run _ (toplevel)* _ EOF ~ {
+    PCC_ERROR();
   }
-/ toplevel
 
 toplevel <-
-  runBlock
-/ EOL
-/ EOF
+  _ 'const'
 
-runBlock <- "run" {
-  printf( "RUN\n" );
-}
-/ (STATEMENT)
-/ "end" {
-  printf( "END\n" );
-}
-
-STATEMENT <-
-  exit_statement
-
-exit_statement <-
-  _ 'exit' _ '(' _ <INTEGER> _ ')' {
-    printf( "EXIT(%s)\n", $1 );
+run <-
+  _ 'run' _ (statement)* _ 'end' ~ {
+    PCC_ERROR();
   }
 
-_ <- [ \t]*
-EOL <- '\n' / '\r\n' / '\r'
-EOF <- !. {
-  exit(0);
-}
+statement <-
+  _ 'if' {
+    printf( "  if\n" );
+  }
+/ _ 'goto' _ <IDENT> {
+    printf( "  goto [%s]\n", $1 );
+  }
+/ _ 'exit' _ '(' _ <INTNUM> _ ')' {
+    printf( "  exit( %s )\n", $2 );
+  }
 
-IDENT <- [a-zA-Z_][a-zA-Z0-9_]*
-INTEGER <- [0-9]+
+_ <- (SPACE / EOL / MLCOMMENT)*
+
+SPACE <- ' ' / '\t'
+
+EOL <- '\r\n' / '\n' / '\r'
+
+EOF <- !.
+
+MLCOMMENT <- '/*' ( (!'*/' .)* '*/')*
+
+IDENT <- [_a-zA-Z][_a-zA-Z0-9]*
+
+INTNUM <- [0-9]+
 
 %%
 

@@ -9,7 +9,7 @@ if exist origotoc.c if exist origotoc.h tcc origotoc.c
 
 if exist origotoc.exe echo Adding version info in OrigoToC executable...
 if exist origotoc.exe .\tools\verpatch\verpatch origotoc.exe /va 0.0.1.1 /pv 0.0.1.1 /s copyright "(C) 2021 Orlando Llanes"
-if not %errorlevel% == 0 del origotoc.exe
+if not %errorlevel% == 0 if exist origotoc.exe del origotoc.exe
 
 echo.
 if exist origotoc.exe echo Done.
