@@ -1,6 +1,30 @@
 program retineo
 
+enum Baz
+  field1, field2, field3 = 1234
+  field4
+  field5, field6, field7, field8
+  field9 = 4321
+end
+
+type int Bar
+type @int BarPtr
+type #int BarRef
+type int[1234] BarArray
+type @int[1234] BarArrayPtr
+type #int[1234] BarArrayRef
+
 run
+  var
+    uint foo
+  end
+
+  var
+    @Bar none
+  end
+
+  if foo then goto BarLabel
+  exit( 1 )
   exit( 1234 )
   exit( 4321 )
   goto Foo
