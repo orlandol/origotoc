@@ -8,15 +8,18 @@ enum Baz
 end
 
 type int Bar
+type int Quux = 1111
 type @int BarPtr
 type #int BarRef
 type int[1234] BarArray
 type @int[1234] BarArrayPtr
 type #int[1234] BarArrayRef
 
+type union(int, uint, char, bool) TokenVal
+
 run
   var
-    uint foo
+    uint foo = 2222
   end
 
   var
@@ -24,8 +27,8 @@ run
   end
 
   if foo then goto BarLabel
-  exit( 1 )
-  exit( 1234 )
-  exit( 4321 )
+  exit(1)
+  Foo:exit( 1234 )
+  BarLabel:exit( 4321 )
   goto Foo
 end

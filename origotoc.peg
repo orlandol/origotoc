@@ -23,17 +23,32 @@ source_header <-
   }
 
 program_declaration <- 'program' _ <IDENT> _ {
-  printf( "program [%s]\n", $1 );
+  printf( "// %s\n", $0 );
+  printf( "#include <stdbool.h>\n\n"
+  "typedef __int8 int8;\n"
+  "typedef __int16 int16;\n"
+  "typedef __int32 int32;\n"
+  "typedef __int32 int32;\n\n"
+  "typedef __uint8 uint8;\n"
+  "typedef __uint16 uint16;\n"
+  "typedef __uint32 uint32;\n"
+  "typedef __uint32 uint32;\n\n"
+  "typedef size_t fsize;\n\n"
+  "typedef size_t size;\n\n" );
 }
 
 toplevel <-
   enum_declaration _ (enum_field_declaration)* _ 'end' _ {
-    printf( "end\n" );
+    printf( "};\n" );
+  }
+/ 'type' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> _ {
+    printf( "type [%s][%s] = [%s]\n", $1, $2, $3 );
   }
 / 'type' _ <TYPESPEC> _ <IDENT> _ {
-    printf( "type [%s][%s]\n", $1, $2 );
+    printf( "type [%s][%s]\n", $4, $5 );
   }
-/ 'const' _ {
+/ type_union_declaration _ '(' _ (inline_union_declaration)* _ ')' _ <IDENT> _ {
+    printf( "] %s\n", $6 );
   }
 
 enum_declaration <-
@@ -54,6 +69,19 @@ enum_field_declaration <-
   }
 / <IDENT> _ {
     printf( "  [%s]\n", $4 );
+  }
+
+type_union_declaration <-
+  'type' _ 'union' _ {
+    printf( "type union[" );
+  }
+
+inline_union_declaration <-
+  <TYPESPEC> _ ',' _ {
+    printf( "[%s], ", $1 );
+  }
+/ <TYPESPEC> _ {
+    printf( "[%s]", $2 );
   }
 
 local_var_block <- 'var' _ (local_var_declaration)* _ 'end' _ {
@@ -83,14 +111,17 @@ statement <-
 / 'goto' _ <IDENT> _ {
     printf( "  goto [%s]\n", $1 );
   }
-/ 'exit' _ '(' _ <INTNUM> _ ')' _ {
+/ 'exit' _ '(' _ <EXPR> _ ')' _ {
     printf( "  exit( %s )\n", $2 );
+  }
+/ <IDENT>':' _ {
+    printf( "%s:", $3 );
   }
 
 if_statement <-
   'if' _ <CONDITION> {
     printf( "  if [%s]\n", $1 );
-}
+  }
 
 _ <- (SPACE / EOL / MLCOMMENT)*
 
@@ -114,14 +145,13 @@ BASETYPE <-
 
 SIMPLETYPE <- BASETYPE / IDENT
 
-TYPESPEC <- <[@#]?> _ <SIMPLETYPE> _ ('[' _ <CONSTEXPR> _ ']')? _ {
-}
+TYPESPEC <- <[@#]?> _ <SIMPLETYPE> _ ('[' _ <CONSTEXPR> _ ']')? _
 
 CONDITION <- IDENT / INTNUM
 
 EXPR <- IDENT / INTNUM
 
-CONSTEXPR <- IDENT / INTNUM
+CONSTEXPR <- EXPR
 
 %%
 
