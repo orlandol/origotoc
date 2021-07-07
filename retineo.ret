@@ -1,10 +1,11 @@
 program retineo
 
 enum Baz
-  field1, field2, field3 = 1234
-  field4
-  field5, field6, field7, field8
-  field9 = 4321
+  field1
+  field2
+  field3
+  field4 = 1234
+  field5
 end
 
 type int Bar

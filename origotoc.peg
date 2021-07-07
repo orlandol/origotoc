@@ -1,5 +1,7 @@
 
 %source {
+  char declIdent[4192] = {};
+
   // begin strnlen copied from packcc.c source file, as a workaround for TinyCC
   static size_t strnlen(const char *str, size_t maxlen) {
     size_t i;
@@ -25,50 +27,56 @@ source_header <-
 program_declaration <- 'program' _ <IDENT> _ {
   printf( "// %s\n", $0 );
   printf( "#include <stdbool.h>\n\n"
-  "typedef __int8 int8;\n"
-  "typedef __int16 int16;\n"
-  "typedef __int32 int32;\n"
-  "typedef __int32 int32;\n\n"
-  "typedef __uint8 uint8;\n"
-  "typedef __uint16 uint16;\n"
-  "typedef __uint32 uint32;\n"
-  "typedef __uint32 uint32;\n\n"
-  "typedef size_t fsize;\n\n"
-  "typedef size_t size;\n\n" );
+  "  typedef __int8 int8;\n"
+  "  typedef __int16 int16;\n"
+  "  typedef __int32 int32;\n"
+  "  typedef __int32 int32;\n\n"
+  "  typedef __uint8 uint8;\n"
+  "  typedef __uint16 uint16;\n"
+  "  typedef __uint32 uint32;\n"
+  "  typedef __uint32 uint32;\n\n"
+  "  typedef size_t fsize;\n\n"
+  "  typedef size_t size;\n\n" );
 }
 
 toplevel <-
   enum_declaration _ (enum_field_declaration)* _ 'end' _ {
-    printf( "};\n" );
+    printf( "  };\n\n" );
   }
 / 'type' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> _ {
-    printf( "type [%s][%s] = [%s]\n", $1, $2, $3 );
+    printf( "  type [%s][%s] = [%s]\n", $1, $2, $3 );
   }
 / 'type' _ <TYPESPEC> _ <IDENT> _ {
-    printf( "type [%s][%s]\n", $4, $5 );
+    printf( "  type [%s][%s]\n", $4, $5 );
   }
 / type_union_declaration _ '(' _ (inline_union_declaration)* _ ')' _ <IDENT> _ {
-    printf( "] %s\n", $6 );
+    printf( "  ] %s\n", $6 );
   }
 
 enum_declaration <-
-  'enum' _ <BASETYPE> _ <IDENT> _ {
-    printf( "enum [%s][%s]\n", $1, $2 );
-  }
-/ 'enum' _ <IDENT> _ {
-    printf( "enum [%s]\n", $3 );
+  'enum' _ <IDENT> _ {
+    printf( "// %s\n", $0 );
+    printf( "  enum %s {\n", $1 );
+    $$ = 0; // Init value
   }
 
 enum_field_declaration <-
   &'end'
-/ <IDENT> _ '=' _ <CONSTEXPR> _ {
-    printf( "  [%s] = [%s]\n", $1, $2 );
+/ <IDENT> _ '=' _ <CONSTEXPR> _ &'end' {
+    $$ = atoi($2);
+    printf( "    %s = %s // %i\n", $1, $2, $$ );
   }
-/ <IDENT> _ ',' _ {
-    printf( "  [%s],\n", $3 );
+/ <IDENT> _ '=' _ <CONSTEXPR> _ {
+    $$ = atoi($4);
+    printf( "    %s = %s, // %i\n", $3, $4, $$ );
+    $$++;
+  }
+/ <IDENT> _ &'end' {
+    printf( "    %s // %i\n", $5, $$ );
   }
 / <IDENT> _ {
-    printf( "  [%s]\n", $4 );
+    printf( "    %s, // %i\n", $6, $$ );
+    $$++;
   }
 
 type_union_declaration <-
