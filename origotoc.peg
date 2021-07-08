@@ -1,6 +1,20 @@
 
+%header {
+  enum PointerType {
+    ptrData = 1
+  };
+
+  typedef struct TypeSpec {
+    unsigned pointerType;
+    char simpleTypeName[2048];
+    unsigned elementCount;
+  } TypeSpec;
+}
+
 %source {
   char declIdent[4192] = {};
+
+  TypeSpec typeSpec = {};
 
   // begin strnlen copied from packcc.c source file, as a workaround for TinyCC
   static size_t strnlen(const char *str, size_t maxlen) {
@@ -35,8 +49,8 @@ program_declaration <- 'program' _ <IDENT> _ {
   "  typedef __uint16 uint16;\n"
   "  typedef __uint32 uint32;\n"
   "  typedef __uint32 uint32;\n\n"
-  "  typedef size_t fsize;\n\n"
-  "  typedef size_t size;\n\n" );
+  "  typedef __uint64 fsize;\n\n"
+  "  typedef unsigned size;\n\n" );
 }
 
 toplevel <-
@@ -44,10 +58,39 @@ toplevel <-
     printf( "  };\n\n" );
   }
 / 'type' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> _ {
-    printf( "  type [%s][%s] = [%s]\n", $1, $2, $3 );
+    printf( "// %s\n", $0 );
+
+    // typedef
+    printf( "  typedef %s ", typeSpec.simpleTypeName );
+    if( typeSpec.pointerType == ptrData ) {
+      printf( "*" );
+    }
+    if( typeSpec.elementCount ) {
+      printf( "%s[%u];\n\n", $2, typeSpec.elementCount );
+    } else {
+      printf( "%s;\n\n", $2 );
+    }
+
+    // default value
+    printf( "  const %s ", typeSpec.simpleTypeName );
+    if( typeSpec.pointerType == ptrData ) {
+      printf( "*" );
+    }
+    printf( "default%s = %s;\n\n", $2, $3 );
   }
 / 'type' _ <TYPESPEC> _ <IDENT> _ {
-    printf( "  type [%s][%s]\n", $4, $5 );
+    printf( "\n// %s\n", $0 );
+
+    // typedef
+    printf( "  typedef %s ", typeSpec.simpleTypeName );
+    if( typeSpec.pointerType == ptrData ) {
+      printf( "*" );
+    }
+    if( typeSpec.elementCount ) {
+      printf( "%s[%u];\n\n", $5, typeSpec.elementCount );
+    } else {
+      printf( "%s;\n\n", $5 );
+    }
   }
 / type_union_declaration _ '(' _ (inline_union_declaration)* _ ')' _ <IDENT> _ {
     printf( "  ] %s\n", $6 );
@@ -72,7 +115,7 @@ enum_field_declaration <-
     $$++;
   }
 / <IDENT> _ &'end' {
-    printf( "    %s // %i\n", $5, $$ );
+    printf( "    %s  // %i\n", $5, $$ );
   }
 / <IDENT> _ {
     printf( "    %s, // %i\n", $6, $$ );
@@ -153,7 +196,19 @@ BASETYPE <-
 
 SIMPLETYPE <- BASETYPE / IDENT
 
-TYPESPEC <- <[@#]?> _ <SIMPLETYPE> _ ('[' _ <CONSTEXPR> _ ']')? _
+TYPESPEC <- <[@]?> _ <SIMPLETYPE> _ ('[' _ <CONSTEXPR> _ ']')? _ {
+  memset( &typeSpec, 0, sizeof(typeSpec) );
+
+  if( strcmp($1, "@") == 0 ) {
+    typeSpec.pointerType = ptrData;
+  }
+
+  strcpy( typeSpec.simpleTypeName, $2 );
+
+  if( strlen($3) > 0 ) {
+    typeSpec.elementCount = atoi($3);
+  }
+}
 
 CONDITION <- IDENT / INTNUM
 

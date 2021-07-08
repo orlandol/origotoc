@@ -11,10 +11,8 @@ end
 type int Bar
 type int Quux = 1111
 type @int BarPtr
-type #int BarRef
 type int[1234] BarArray
 type @int[1234] BarArrayPtr
-type #int[1234] BarArrayRef
 
 type union(int, uint, char, bool) TokenVal
 
