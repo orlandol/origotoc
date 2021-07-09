@@ -14,8 +14,6 @@ type @int BarPtr
 type int[1234] BarArray
 type @int[1234] BarArrayPtr
 
-type union(int, uint, char, bool) TokenVal
-
 run
   var
     uint foo = 2222

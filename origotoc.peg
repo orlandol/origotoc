@@ -32,6 +32,23 @@
       fprintf(stderr, "%*s%s %s @%d [%.*s]\n", level * 2, "", dbg_str[event], rule, pos, length, buffer);\
     }
 */
+
+  void TranslateTypeSpec( TypeSpec* ts, char* ident ) {
+    if( !(ts && ident) ) {
+      printf( "Internal Error: NULL TypeSpec and/or ident passed to TranslateTypeSpec.\n" );
+      exit(1);
+    }
+
+    printf( "%s ", ts->simpleTypeName );
+    if( ts->pointerType == ptrData ) {
+      printf( "*" );
+    }
+    if( ts->elementCount ) {
+      printf( "%s[%u]", ident, ts->elementCount );
+    } else {
+      printf( "%s", ident );
+    }
+  }
 }
 
 source_header <-
@@ -40,17 +57,21 @@ source_header <-
 
 program_declaration <- 'program' _ <IDENT> _ {
   printf( "// %s\n", $0 );
-  printf( "#include <stdbool.h>\n\n"
-  "  typedef __int8 int8;\n"
-  "  typedef __int16 int16;\n"
-  "  typedef __int32 int32;\n"
-  "  typedef __int32 int32;\n\n"
-  "  typedef __uint8 uint8;\n"
-  "  typedef __uint16 uint16;\n"
-  "  typedef __uint32 uint32;\n"
-  "  typedef __uint32 uint32;\n\n"
-  "  typedef __uint64 fsize;\n\n"
-  "  typedef unsigned size;\n\n" );
+  printf(
+  "#include <stdbool.h>\n"
+  "#include <stdint.h>\n"
+  "#include <stdlib.h>\n"
+  "  typedef unsigned uint;\n"
+  "  typedef int8_t int8;\n"
+  "  typedef int16_t int16;\n"
+  "  typedef int32_t int32;\n"
+  "  typedef int32_t int32;\n\n"
+  "  typedef uint8_t uint8;\n"
+  "  typedef uint16_t uint16;\n"
+  "  typedef uint32_t uint32;\n"
+  "  typedef uint32_t uint32;\n\n"
+  "  typedef uint64_t fsize;\n\n"
+  "  typedef size_t size;\n\n" );
 }
 
 toplevel <-
@@ -61,15 +82,9 @@ toplevel <-
     printf( "// %s\n", $0 );
 
     // typedef
-    printf( "  typedef %s ", typeSpec.simpleTypeName );
-    if( typeSpec.pointerType == ptrData ) {
-      printf( "*" );
-    }
-    if( typeSpec.elementCount ) {
-      printf( "%s[%u];\n\n", $2, typeSpec.elementCount );
-    } else {
-      printf( "%s;\n\n", $2 );
-    }
+    printf( "  typedef " );
+    TranslateTypeSpec( &typeSpec, (char*)$2 );
+    printf( ";\n\n" );
 
     // default value
     printf( "  const %s ", typeSpec.simpleTypeName );
@@ -82,18 +97,9 @@ toplevel <-
     printf( "\n// %s\n", $0 );
 
     // typedef
-    printf( "  typedef %s ", typeSpec.simpleTypeName );
-    if( typeSpec.pointerType == ptrData ) {
-      printf( "*" );
-    }
-    if( typeSpec.elementCount ) {
-      printf( "%s[%u];\n\n", $5, typeSpec.elementCount );
-    } else {
-      printf( "%s;\n\n", $5 );
-    }
-  }
-/ type_union_declaration _ '(' _ (inline_union_declaration)* _ ')' _ <IDENT> _ {
-    printf( "  ] %s\n", $6 );
+    printf( "  typedef " );
+    TranslateTypeSpec( &typeSpec, (char*)$5 );
+    printf( ";\n\n" );
   }
 
 enum_declaration <-
@@ -122,56 +128,60 @@ enum_field_declaration <-
     $$++;
   }
 
-type_union_declaration <-
-  'type' _ 'union' _ {
-    printf( "type union[" );
-  }
-
-inline_union_declaration <-
-  <TYPESPEC> _ ',' _ {
-    printf( "[%s], ", $1 );
-  }
-/ <TYPESPEC> _ {
-    printf( "[%s]", $2 );
-  }
-
 local_var_block <- 'var' _ (local_var_declaration)* _ 'end' _ {
 }
 
 local_var_declaration <-
   &'end'
 / <TYPESPEC> _ <IDENT> _ '=' _ <EXPR> _ {
-    printf( "  [%s][%s] = [%s]\n", $1, $2, $3 );
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$2 );
+    printf( " = (%s);\n\n", $3 );
   }
 / <TYPESPEC> _ <IDENT> _ {
-    printf( "  [%s][%s]\n", $4, $5 );
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$5 );
+    printf( ";\n\n" );
   }
 
 run_block <-
   run _ (local_var_block)* _ (statement)* _ 'end' _ {
-    printf( "end\n" );
+    printf(
+      "  return 0;\n"
+      "}\n"
+    );
   }
 
 run <- 'run' _ {
-  printf( "run\n" );
+  printf( "// run\n" );
+  printf(
+    "int main( int argc, char* argv[] ) {\n\n"
+  );
 }
 
 statement <-
   &'end'
-/ if_statement _ 'then' _ statement _
+/ if_statement _ <'then' _ statement> _ {
+    printf( "// %s\n", $1 );
+    printf( "  }\n\n" );
+  }
 / 'goto' _ <IDENT> _ {
-    printf( "  goto [%s]\n", $1 );
+    printf( "// %s\n", $2 );
+    printf( "  goto %s;\n", $2 );
   }
 / 'exit' _ '(' _ <EXPR> _ ')' _ {
-    printf( "  exit( %s )\n", $2 );
+    printf( "  exit( %s );\n", $3 );
   }
 / <IDENT>':' _ {
-    printf( "%s:", $3 );
+    printf( "%s:", $4 );
   }
 
 if_statement <-
   'if' _ <CONDITION> {
-    printf( "  if [%s]\n", $1 );
+    printf( "// %s\n", $0 );
+    printf( "  if( %s ) {\n", $1 );
   }
 
 _ <- (SPACE / EOL / MLCOMMENT)*
