@@ -58,25 +58,43 @@ source_header <-
 program_declaration <- 'program' _ <IDENT> _ {
   printf( "// %s\n", $0 );
   printf(
-  "#include <stdbool.h>\n"
-  "#include <stdint.h>\n"
-  "#include <stdlib.h>\n"
-  "  typedef unsigned uint;\n"
-  "  typedef int8_t int8;\n"
-  "  typedef int16_t int16;\n"
-  "  typedef int32_t int32;\n"
-  "  typedef int32_t int32;\n\n"
-  "  typedef uint8_t uint8;\n"
-  "  typedef uint16_t uint16;\n"
-  "  typedef uint32_t uint32;\n"
-  "  typedef uint32_t uint32;\n\n"
-  "  typedef uint64_t fsize;\n\n"
-  "  typedef size_t size;\n\n" );
+    "#include <stdbool.h>\n"
+    "#include <stdint.h>\n"
+    "#include <stdlib.h>\n\n"
+    "  typedef unsigned uint;\n"
+    "  typedef int8_t int8;\n"
+    "  typedef int16_t int16;\n"
+    "  typedef int32_t int32;\n"
+    "  typedef int32_t int32;\n\n"
+    "  typedef uint8_t uint8;\n"
+    "  typedef uint16_t uint16;\n"
+    "  typedef uint32_t uint32;\n"
+    "  typedef uint32_t uint32;\n\n"
+    "  typedef uint64_t fsize;\n\n"
+    "  typedef unsigned size;\n\n"
+    "  int argc;\n"
+    "  char** argv = NULL;\n\n"
+  );
 }
 
 toplevel <-
   enum_declaration _ (enum_field_declaration)* _ 'end' _ {
     printf( "  };\n\n" );
+
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
+  }
+/ union_declaration _ (union_field_declaration)* _ 'end' _ {
+    printf( "  } %s;\n", declIdent );
+
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
+  }
+/ struct_declaration _ (struct_field_declaration)* _ 'end' _ {
+    printf( "  } %s;\n", declIdent );
+
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
   }
 / 'type' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> _ {
     printf( "// %s\n", $0 );
@@ -87,11 +105,14 @@ toplevel <-
     printf( ";\n\n" );
 
     // default value
-    printf( "  const %s ", typeSpec.simpleTypeName );
+    printf( "  const %s ", $2 );
     if( typeSpec.pointerType == ptrData ) {
       printf( "*" );
     }
     printf( "default%s = %s;\n\n", $2, $3 );
+
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
   }
 / 'type' _ <TYPESPEC> _ <IDENT> _ {
     printf( "\n// %s\n", $0 );
@@ -100,6 +121,31 @@ toplevel <-
     printf( "  typedef " );
     TranslateTypeSpec( &typeSpec, (char*)$5 );
     printf( ";\n\n" );
+
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
+  }
+/ 'const' _ (const_value_declaration)* _ 'end' _ {
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
+  }
+/ 'var' _ (global_var_declaration)* _ 'end' _ {
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
+  }
+/ funcdecl _ callspec? _ func_name _ '(' _ (paramdecl)* _ ')' _ {
+    printf( ");\n" );
+    printf( "// ^ %s\n", $0 );
+
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
+  }
+/ import_func _ callspec? _ func_name _ '(' _ (paramdecl)* _ ')' _ {
+    printf( ");\n" );
+    printf( "// ^ %s\n", $0 );
+
+    memset( &typeSpec, 0, sizeof(typeSpec) );
+    memset( declIdent, 0, sizeof(declIdent) );
   }
 
 enum_declaration <-
@@ -126,6 +172,110 @@ enum_field_declaration <-
 / <IDENT> _ {
     printf( "    %s, // %i\n", $6, $$ );
     $$++;
+  }
+
+union_declaration <-
+  'union' _ <IDENT> _ {
+    printf( "// %s\n", $0 );
+    printf( "typedef union %s {\n", $1 );
+
+    strcpy( declIdent, $1 );
+  }
+
+union_field_declaration <-
+  &'end'
+/ TYPESPEC _ <IDENT> _ ',' _ {
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$1 );
+    printf( ", " );
+  }
+/ TYPESPEC _ <IDENT> _ {
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$2 );
+    printf( ";\n" );
+  }
+
+struct_declaration <-
+  'struct' _ <IDENT> _ {
+    printf( "// %s\n", $0 );
+    printf( "typedef struct %s {\n", $1 );
+
+    strcpy( declIdent, $1 );
+  }
+
+struct_field_declaration <-
+  &'end'
+/ TYPESPEC _ <IDENT> _ ',' _ {
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$1 );
+    printf( ", " );
+  }
+/ TYPESPEC _ <IDENT> _ {
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$2 );
+    printf( ";\n\n" );
+  }
+
+const_value_declaration <-
+  &'end'
+/ TYPESPEC _ <IDENT> _ '=' _ <CONSTEXPR> _ {
+    printf( "// %s\n", $0 );
+    printf( "  const " );
+    TranslateTypeSpec( &typeSpec, (char*)$1 );
+    printf( " = (%s);\n\n", $2 );
+  }
+
+global_var_declaration <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> _ {
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$2 );
+    printf( " = (%s);\n\n", $3 );
+  }
+/ <TYPESPEC> _ <IDENT> _ {
+    printf( "// %s\n", $0 );
+    printf( "  " );
+    TranslateTypeSpec( &typeSpec, (char*)$5 );
+    printf( ";\n\n" );
+  }
+
+paramdecl <-
+  TYPESPEC _ <IDENT> _ ',' _ {
+    TranslateTypeSpec( &typeSpec, (char*)$1 );
+    printf( ", " );
+  }
+/ TYPESPEC _ <IDENT> _ {
+    TranslateTypeSpec( &typeSpec, (char*)$2 );
+    printf( " " );
+  }
+
+funcdecl <-
+  'funcdecl' _ {
+     printf( "  " );
+  }
+
+callspec <-
+  <CALLSPEC> _ {
+    printf( "__%s ", $1 );
+  }
+
+func_name <-
+  TYPESPEC _ <IDENT> _ {
+    TranslateTypeSpec( &typeSpec, (char*)$1 );
+    printf( " ( " );
+  }
+/ <IDENT> _ {
+    printf( "void %s %s ( ", declIdent, $2 );
+  }
+
+import_func <-
+  'import' _ 'func' _ {
+     printf( "  extern " );
   }
 
 local_var_block <- 'var' _ (local_var_declaration)* _ 'end' _ {
@@ -157,31 +307,49 @@ run_block <-
 run <- 'run' _ {
   printf( "// run\n" );
   printf(
-    "int main( int argc, char* argv[] ) {\n\n"
+    "int main( int paramArgc, char* paramArgv[] ) {\n"
+    "  argc = paramArgc;\n"
+    "  argv = paramArgv;\n\n"
   );
 }
 
 statement <-
   &'end'
-/ if_statement _ <'then' _ statement> _ {
-    printf( "// %s\n", $1 );
+/ if_statement _ 'then' _ statement _ {
+    printf( "  }\n\n" );
+  }
+/ if_statement _ (statement)* _ (elseif_statement _ (statement)*)? _ (else_statement _ (statement)*)? _ 'endif' _ {
+    printf( "// endif\n" );
     printf( "  }\n\n" );
   }
 / 'goto' _ <IDENT> _ {
-    printf( "// %s\n", $2 );
-    printf( "  goto %s;\n", $2 );
+    printf( "// %s\n", $0 );
+    printf( "  goto %s;\n", $1 );
   }
 / 'exit' _ '(' _ <EXPR> _ ')' _ {
-    printf( "  exit( %s );\n", $3 );
+    printf( "// %s\n", $0 );
+    printf( "  exit( %s );\n", $2 );
   }
 / <IDENT>':' _ {
-    printf( "%s:", $4 );
+    printf( "%s:\n", $3 );
   }
 
 if_statement <-
   'if' _ <CONDITION> {
     printf( "// %s\n", $0 );
     printf( "  if( %s ) {\n", $1 );
+  }
+
+elseif_statement <-
+  'elseif' _ <CONDITION> {
+    printf( "// %s\n", $0 );
+    printf( "  } else if( %s ) {\n", $1 );
+  }
+
+else_statement <-
+  'else' {
+    printf( "// %s\n", $0 );
+    printf( "  } else {\n" );
   }
 
 _ <- (SPACE / EOL / MLCOMMENT)*
@@ -196,6 +364,14 @@ MLCOMMENT <- '/*' ( (!'*/' .)* '*/')*
 
 IDENT <- [_a-zA-Z][_a-zA-Z0-9]*
 
+#STRING <-
+#  <"'" (!"'" .)* "'"> {
+#    printf( "STRING ': %s\n", $1 );
+#  }
+#/ <'"' (!'"' .)* '"'> {
+#    printf( "STRING \": %s\n", $2 );
+#  }
+
 INTNUM <- [0-9]+
 
 BASETYPE <-
@@ -205,6 +381,8 @@ BASETYPE <-
 / 'char'
 
 SIMPLETYPE <- BASETYPE / IDENT
+
+CALLSPEC <- 'stdcall' / 'cdecl'
 
 TYPESPEC <- <[@]?> _ <SIMPLETYPE> _ ('[' _ <CONSTEXPR> _ ']')? _ {
   memset( &typeSpec, 0, sizeof(typeSpec) );
@@ -224,7 +402,7 @@ CONDITION <- IDENT / INTNUM
 
 EXPR <- IDENT / INTNUM
 
-CONSTEXPR <- EXPR
+CONSTEXPR <- IDENT / INTNUM
 
 %%
 
