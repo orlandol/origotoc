@@ -1,0 +1,96 @@
+program retineo
+
+enum Baz
+  field1
+  field2
+  field3
+  field4 = 1234
+  field5
+end
+
+type int Bar
+type int Quux = 1111
+type @int BarPtr
+type int[1234] BarArray
+type @int[1234] BarArrayPtr
+
+union Baz
+  uint field1
+  @int field2
+  char[256] field3
+  @Baz field4, field5
+end
+
+struct SLLNode
+  @SLLNode next
+  int value
+end
+
+var
+  Quux quux = 4444
+  Quux quuz
+end
+
+const
+  Bar barValue1 = 1234
+  Bar barValue2 = 4321
+end
+
+type uint UINT
+import func ExitProcess( UINT uExitCode )
+
+func exit( uint exitCode )
+var Bar bar end
+Foo:
+  return( 1234 )
+  goto Foo
+end
+
+funcdecl stdcall Quux fn5( Foo foo, Bar bar )
+
+funcdecl cdecl int fn4()
+
+funcdecl stdcall fn1()
+
+funcdecl fn2()
+
+funcdecl int fn3()
+
+run
+  var
+    uint foo = 2222
+  end
+
+  var
+    @Bar none
+  end
+
+  if quux then goto BarLabel
+
+  if foo then if bar then goto BarLabel
+
+  if quark
+    exit(11)
+  elseif 1234
+    exit(22)
+  else
+    exit(33)
+  endif
+
+  if supernova
+    goto Galaxy
+  else
+      exit(44)
+    Galaxy:
+      exit(55)
+  endif
+
+  if apple
+    exit(66)
+  endif
+
+  exit(1)
+  Foo:exit( 1234 )
+  BarLabel:exit( 4321 )
+  goto Foo
+end

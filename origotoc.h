@@ -3,15 +3,6 @@
 #ifndef PCC_INCLUDED_ORIGOTOC_H
 #define PCC_INCLUDED_ORIGOTOC_H
 
-enum PointerType {
-  ptrData = 1
-};
-
-typedef struct TypeSpec {
-  unsigned pointerType;
-  char simpleTypeName[2048];
-  unsigned elementCount;
-} TypeSpec;
 #ifdef __cplusplus
 extern "C" {
 #endif
