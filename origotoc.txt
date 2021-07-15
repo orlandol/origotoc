@@ -104,7 +104,7 @@ toplevel <-
     memset( &typeSpec, 0, sizeof(typeSpec) );
     memset( declIdent, 0, sizeof(declIdent) );
   }
-/ 'type' _ TYPESPEC _ <IDENT> _ {
+/ 'type' _  _ <IDENT> _ {
     printf( "\n// %s\n", $0 );
 
     // typedef

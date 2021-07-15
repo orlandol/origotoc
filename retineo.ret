@@ -1,17 +1,31 @@
 
 program Retineo
 
-enum Foo
-  field1
-  field2
-  field3 = 1234
-  field4
-end
+  enum Foo
+    field1
+    field2
+    field3 = 1234
+    field4
+  end
+
+  union Bar
+    int field1
+    fsize[10] field2
+    size field3
+  end
+
+  type @int[1234] Quux
 
 run
-var end
-quux.hello(1+2 << 1 >> 2, 3*4)
-foo = 1 + ~--a++ + math.abs(2 << 4 * 8) + @ b
-@bar += @bar + ((1 + 2) - 3) + 4
-abc = 123 && def || ghi != 456
+  var
+    int v1
+  end
+
+  quux.hello(1+2 << 1 >> 2, 3*4)
+
+  foo = 1 + ~--a++ + math.abs(2 << 4 * 8) + @ b
+
+  @bar += @bar + ((1 + 2) - 3) + 4
+
+  abc = 123 && def || ghi != 456
 end
