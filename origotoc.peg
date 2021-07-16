@@ -19,14 +19,15 @@
       fprintf(stderr, "%*s%s %s @%d [%.*s]\n", level * 2, "", dbg_str[event], rule, pos, length, buffer);
 */
 
-  int TranslateTypeSpec( const char* typeSpec, size_t* arrayDim ) {
+  int TranslateTypeSpec( const char* typeSpec, char* ident ) {
     size_t tspecPos = 0;
     char ptrCh = '\0';
     char simpleType[256] = {};
     size_t simpleTypeLen = 0;
-    size_t tmpDim = 0;
+    size_t arrayDim = (size_t)-1;
+    int hasArray = 0;
 
-    if( !(typeSpec && arrayDim) ) {
+    if( !(typeSpec && ident) ) {
       return 0;
     }
 
@@ -35,6 +36,7 @@
       tspecPos++;
     }
     if( typeSpec[tspecPos] == '\0' ) {
+      ///TODO: Generate void ident here?
       return 0;
     }
     if( typeSpec[tspecPos] == '@' ) {
@@ -46,46 +48,62 @@
     while( isspace(typeSpec[tspecPos]) ) {
       tspecPos++;
     }
-    if( typeSpec[tspecPos] == '\0' ) {
-      return 0;
-    }
-    while( isalnum(typeSpec[tspecPos]) ) {
-      if( simpleTypeLen < sizeof(simpleTypeLen-1) ) {
-        simpleType[simpleTypeLen] = typeSpec[tspecPos];
-        simpleTypeLen++;
+    if( typeSpec[tspecPos] ) {
+      while( isalnum(typeSpec[tspecPos]) ) {
+        if( simpleTypeLen < sizeof(simpleTypeLen-1) ) {
+          simpleType[simpleTypeLen] = typeSpec[tspecPos];
+          simpleTypeLen++;
+        }
+        tspecPos++;
       }
-      tspecPos++;
-    }
-    simpleType[simpleTypeLen] = '\0';
+      simpleType[simpleTypeLen] = '\0';
 
-    // Process array dimension
-    while( isspace(typeSpec[tspecPos]) ) {
-      tspecPos++;
-    }
-    if( typeSpec[tspecPos] == '[' ) {
-      tspecPos++;
+      // Process array dimension
       while( isspace(typeSpec[tspecPos]) ) {
         tspecPos++;
       }
-      while( isdigit(typeSpec[tspecPos]) ) {
-        tmpDim = (tmpDim * 10) + (typeSpec[tspecPos] - '0');
+      if( typeSpec[tspecPos] == '[' ) {
+        hasArray = 1;
+        tspecPos++;
+        while( isspace(typeSpec[tspecPos]) ) {
+          tspecPos++;
+        }
+        if( isdigit(typeSpec[tspecPos]) ) {
+          arrayDim = 0;
+        }
+        while( isdigit(typeSpec[tspecPos]) ) {
+          arrayDim = (arrayDim * 10) + (typeSpec[tspecPos] - '0');
+          tspecPos++;
+        }
+        while( isspace(typeSpec[tspecPos]) ) {
+          tspecPos++;
+        }
+        if( typeSpec[tspecPos] != ']' ) {
+          return 0;
+        }
         tspecPos++;
       }
-      while( isspace(typeSpec[tspecPos]) ) {
-        tspecPos++;
-      }
-      if( typeSpec[tspecPos] != ']' ) {
-        return 0;
-      }
-      tspecPos++;
-      *arrayDim = tmpDim;
     }
 
-		// Output C declaration
+	// Output C declaration
     if( ptrCh ) {
-      printf( "%s%c ", simpleType, ptrCh );
+      if( hasArray && (arrayDim == -1) ) {
+        printf( "%s%c%c ", simpleTypeLen ? simpleType : "void", ptrCh, '*' );
+      } else {
+        printf( "%s%c ", simpleTypeLen ? simpleType : "void", ptrCh );
+      }
     } else {
-      printf( "%s ", simpleType );
+      printf( "%s ", simpleTypeLen ? simpleType : "void" );
+    }
+
+    if( hasArray && arrayDim ) {
+      if( arrayDim == -1 ) {
+        printf( "%s", ident );
+      } else {
+        printf( "%s[%i]", ident, arrayDim );
+      }
+    } else {
+      printf( "%s", ident );
     }
 
     return -1;
@@ -99,7 +117,7 @@ program_header <-
 
 program_begin <-
   'program' _ <IDENT> {
-    printf( "// program %s\n\n", $1 );
+    printf( "// program %s\n", $1 );
     printf(
       "#include <stdbool.h>\n"
       "#include <stdint.h>\n"
@@ -131,9 +149,9 @@ program_begin <-
 declaration <-
   declare_enum
 / declare_union
-#/ declare_struct
-/ _ declare_type
-#/ declare_const
+/ declare_struct
+/ _ declare_type _
+/ declare_const
 #/ declare_global_var
 #/ declare_func_prototype
 #/ declare_func_import
@@ -151,6 +169,9 @@ declare_local_var <-
 declare_local <-
   &'end'
 / <TYPESPEC> _ <IDENT> _ {
+    printf( "  " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( "; // %s\n", $0 );
   }
 
 # End local variable declaration grammar
@@ -161,27 +182,33 @@ declare_enum <-
     ///TODO: Generate structure and constant from queue
     printf(
       "  // end\n"
-      "  }\n"
+      "  };\n"
       "\n"
     );
   }
 
 declare_enum_begin <-
   'enum' _ <IDENT> {
-    ///TODO: Queue declarations
     $$ = 0;
     printf( "  // %s\n", $0 );
-    printf( "  enum {\n", $1 );
+    printf( "  enum %s {\n", $1 );
   }
 
 declare_enum_field <-
   &'end'
-/ <IDENT> _ '=' _ <CONSTEXPR> _ {
+/ <IDENT> _ '=' _ <CONSTEXPR> _ &'end' {
     $$ = atoi($2);
     printf( "    %s = %s // %i\n", $1, $2, $$++ );
   }
+/ <IDENT> _ '=' _ <CONSTEXPR> _ {
+    $$ = atoi($4);
+    printf( "    %s = %s, // %i\n", $3, $4, $$++ );
+  }
+/ <IDENT> _ &'end' {
+    printf( "    %s // %i\n", $5, $$++ );
+  }
 / <IDENT> _ {
-    printf( "    %s // %i\n", $3, $$++ );
+    printf( "    %s, // %i\n", $6, $$++ );
   }
 # End enum declaration grammar
 
@@ -204,36 +231,75 @@ declare_union_field <-
   &'end'
 / <TYPESPEC> _ <IDENT> {
     printf( "    " );
-
-    size_t arrayDim = 0;
-    TranslateTypeSpec( (char*)$1, &arrayDim );
-
-    if( arrayDim ) {
-      printf( "%s[%i];", $2, arrayDim );
-    } else {
-      printf( "%s;", $2 );
-    }
-    printf( " // %s\n", $0 );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( "; // %s\n", $0 );
   }
 # End union declaration grammar
 
+## Begin struct declaration grammar
+declare_struct <-
+  _ declare_struct_begin (_ declare_struct_field)* _ 'end' {
+    printf( "  // end\n" );
+    printf( "  } %s;\n\n", rootIdent );
+  }
+
+declare_struct_begin <-
+  'struct' _ <IDENT> {
+    strcpy( rootIdent, $1 );
+
+    printf( "  // %s\n", $0 );
+    printf( "  typedef struct %s {\n", rootIdent );
+  }
+
+declare_struct_field <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> {
+    printf( "    " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( "; // %s\n", $0 );
+  }
+# End struct declaration grammar
+
 ## Begin type declaration grammar
 declare_type <-
-  'type' _ <TYPESPEC> _ <IDENT> {
+  'type' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> {
+    printf( "  // %s\n", $0 );
+
+    // Generate typedef
+    printf( "  typedef " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( ";\n" );
+
+    // Generate default value
+    printf( "  const " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( " = %s;\n\n", $3 );
+  }
+/ 'type' _ <TYPESPEC> _ <IDENT> {
     printf( "  // %s\n", $0 );
 
     printf( "  typedef " );
-
-    size_t arrayDim = 0;
-    TranslateTypeSpec( (char*)$1, &arrayDim );
-
-    if( arrayDim ) {
-      printf( "%s[%i];\n\n", $2, arrayDim );
-    } else {
-      printf( "%s;\n\n", $2 );
-    }
+    TranslateTypeSpec( (char*)$4, (char*)$5 );
+    printf( ";\n\n", $5 );
   }
 # End type declaration grammar
+
+# End const declaration grammar
+declare_const <-
+  _ declare_const_begin (_ declare_const_value)* _ 'end' _ {
+    printf( "  // end\n" );
+  }
+
+declare_const_begin <-
+  'const' _ {
+    printf( "  // const\n" );
+  }
+
+declare_const_value <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ '=' _ CONSTEXPR {
+  }
+## Begin const block grammar
 
 ## Begin run block grammar
 run_block <-
@@ -392,7 +458,12 @@ OPERAND <-
 
 ## Begin type definitions
 TYPESPEC <-
-  [@]? _ SIMPLETYPE _ ('[' _ <CONSTEXPR> _ ']')?
+  '@' _ SIMPLETYPE _ '[' _ CONSTEXPR? _ ']'
+/ '@' _ ('[' _ CONSTEXPR? _ ']')?
+/ '@' _ SIMPLETYPE
+/ '@'
+/ SIMPLETYPE _ '[' _ CONSTEXPR _ ']'
+/ SIMPLETYPE
 
 SIMPLETYPE <-
   BASETYPE

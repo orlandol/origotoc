@@ -1,31 +1,35 @@
 
 program Retineo
 
-  enum Foo
-    field1
-    field2
-    field3 = 1234
-    field4
+  enum Token
+    EOF = 1
+    EOL
+
+    kwFirst = 1024
+    kwProgram
+    kwRun
+    kwEnd
+    kwLast = kwEnd
   end
 
-  union Bar
-    int field1
-    fsize[10] field2
-    size field3
+  union TokenVal
+    int intVal
+    char charVal
   end
 
-  type @int[1234] Quux
+  struct SysParameters
+    uint registerSize
+    uint defaultPadding
+  end
+
+  type @[1024] Quux
+  type @[] Quuz
+
+  type uint UINT
 
 run
   var
     int v1
   end
-
-  quux.hello(1+2 << 1 >> 2, 3*4)
-
-  foo = 1 + ~--a++ + math.abs(2 << 4 * 8) + @ b
-
-  @bar += @bar + ((1 + 2) - 3) + 4
-
-  abc = 123 && def || ghi != 456
 end
+
