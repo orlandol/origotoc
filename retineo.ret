@@ -45,14 +45,23 @@ program Retineo
     uint defaultPadding
   end
 
+  struct SelfRef
+    next
+  end
+
+  type @int [123] Quuz
+  type @int Quux
+
   type uint UINT // Win32
 
-  const uint32 FILE_SHARE_READ = 0x00000001 // Win32
+//  const uint32 FILE_SHARE_READ = 0x00000001 // Win32
 
+/*
   const string[2] reservedTopLevel = {
     "enum"
     "program"
   }
+*/
 
 run
   var
