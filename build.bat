@@ -1,15 +1,36 @@
 @echo off
 call clean.bat
 
-echo Generating OrigoToC parser from grammar...
-.\tools\packcc\packcc origotoc.peg
-
-if exist origotoc.c if exist origotoc.h echo Building OrigoToC parser...
-if exist origotoc.c if exist origotoc.h tools\tcc\tcc origotoc.c
-
-if exist origotoc.exe echo Adding version info to the OrigoToC executable...
-if exist origotoc.exe .\tools\verpatch\verpatch origotoc.exe /va 0.0.1.1 /pv 0.0.1.1 /s copyright "(C) 2021 Orlando Llanes"
-if not %errorlevel% == 0 if exist origotoc.exe del origotoc.exe
-
 echo.
-if exist origotoc.exe echo Done.
+echo Building OrigoToC...
+if exist origotoc.c .\tools\tcc\tcc.exe origotoc.c
+
+:CheckNext
+if not "%1"=="retg1" goto SkipRetG1
+if exist origotoc.exe echo.
+if exist origotoc.exe echo Transpiling Retineo G1...
+if exist origotoc.exe origotoc.exe retg1.ret
+
+if exist retg1.c if exist retg1.h echo.
+if exist retg1.c if exist retg1.h echo Building Retineo G1...
+if exist retg1.c if exist retg1.h .\tools\tcc\tcc.exe retg1.c
+
+if exist retg1.exe echo.
+if exist retg1.exe echo Building Retineo
+if exist retg1.exe retg1 retineo.ret
+:SkipRetG1
+
+if not "%1"=="test" goto SkipTest
+if exist origotoc.exe echo.
+if exist origotoc.exe echo Transpiling Test...
+if exist origotoc.exe origotoc test
+
+if exist test.c if exist test.h echo.
+if exist test.c if exist test.h echo Building Test...
+if exist test.c if exist test.h .\tools\tcc\tcc.exe test.c
+:SkipTest
+
+if "%1"=="" goto SkipNext
+shift
+goto CheckNext
+:SkipNext

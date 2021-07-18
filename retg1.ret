@@ -1,4 +1,4 @@
-/*
+/* 
  * MIT License
  * 
  * Copyright (c) 2014-2021 Orlando Llanes
@@ -20,51 +20,9 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
- * 
  */
-program Retineo
 
-  enum Token
-    EOF = 1
-    EOL
-
-    kwFirst = 1024
-    kwProgram
-    kwRun
-    kwEnd
-    kwLast = kwEnd
-  end
-
-  union TokenVal
-    int intVal
-    char charVal
-  end
-
-  struct SysInfo
-    uint registerSize
-    uint defaultPadding
-  end
-
-  struct SelfRef
-    next
-  end
-
-  type @int [123] Quuz
-  type @int Quux
-
-  type uint UINT // Win32
-
-//  const uint32 FILE_SHARE_READ = 0x00000001 // Win32
-
-/*
-  const string[2] reservedTopLevel = {
-    "enum"
-    "program"
-  }
-*/
+program retg1
 
 run
-  var
-    int v1
-  end
 end
