@@ -325,14 +325,14 @@ int ParseOptions( OrigoOptions* outOptions ) {
   }
   outOptions->sourceFileName = sourceFileName;
 
-  result = JoinPath(binaryDir, binaryBaseName, ".c", &cFileName);
+  result = JoinPath(binaryDir, binaryBaseName, ".rtc", &cFileName);
   if( result || (cFileName == NULL) ) {
     errorResult = 9;
     goto ExitError;
   }
   outOptions->cFileName = cFileName;
 
-  result = JoinPath(binaryDir, binaryBaseName, ".h", &hFileName);
+  result = JoinPath(binaryDir, binaryBaseName, ".rth", &hFileName);
   if( result || (hFileName == NULL) ) {
     errorResult = 10;
     goto ExitError;
@@ -379,13 +379,18 @@ ExitError:
  *  Warning/error functions
  */
 
-void InternalError( unsigned code, const char* message ) {
-  printf( "Internal Error[%u]: %s\n", code, message );
+void Error( unsigned code, const char* message ) {
+  printf( "Error[%u]: %s\n", code, message );
   exit(1);
 }
 
 void Expected( unsigned line, unsigned column, const char* message ) {
-  printf( "Expected[L%u;C&u]: %s\n", line, column, message );
+  printf( "Expected[L%u,C%u]: %s\n", line, column, message );
+  exit(1);
+}
+
+void Unexpected( unsigned line, unsigned column, const char* message ) {
+  printf( "Unexpected[L%u,C%u]: %s\n", line, column, message );
   exit(1);
 }
 
@@ -393,31 +398,44 @@ void Expected( unsigned line, unsigned column, const char* message ) {
  *  Lexer declarations
  */
 
-int ReadChar( RetFile* sourceFile ) {
-  int ch = EOF;
+RetFile retFile = {};
 
-  if( sourceFile && sourceFile->handle ) {
-    ch = fgetc(sourceFile->handle);
+int ReadChar( RetFile* source ) {
+  int columnInc = 1;
+  char tmpCh;
 
-    switch( ch ) {
-    case '\n':
-      sourceFile->line++;
-      sourceFile->column = 1;
-      break;
-    default:
-      sourceFile->column++;
+  if( source && source->handle ) {
+
+    if( source->curCh == '\n' ) {
+      source->line++;
+      source->column = 1;
+      columnInc = 0;
     }
 
-    sourceFile->ch = ch;
+    source->curCh = source->nextCh;
+    source->nextCh = fgetc(source->handle);
+
+    if( source->nextCh == '\r' ) {
+      tmpCh = fgetc(source->handle);
+      if( tmpCh != '\n' ) {
+        ungetc( tmpCh, source->handle );
+      }
+
+      source->nextCh = '\r';
+    }
+
+    source->column += columnInc;
   }
 
-  return ch;
+  return source->curCh;
 }
 
-int ReadIdentChar( RetFile* sourceFile ) {
+int ReadIdentChar( RetFile* source ) {
   int identCh;
 
-  identCh = ReadChar(sourceFile->handle);
+  if( source == NULL ) { return 1; }
+
+  identCh = ReadChar(source);
 
   // Only read _azAZ
   if( identCh == '_' ) { return identCh; }
@@ -426,30 +444,40 @@ int ReadIdentChar( RetFile* sourceFile ) {
   return EOF;
 }
 
-int ReadDecimalDigit( RetFile* sourceFile ) {
-  int digit;
+int ReadIdent( RetFile* source, char* ident ) {
+  char tmpIdent[IDENT_MAXLEN] = {};
+  size_t identLen = 0;
 
-  digit = ReadChar(sourceFile->handle);
+  if( source == NULL ) { return 1; }
+  if( ident == NULL ) { return 2; }
 
-  // Skip separators
-  while( (digit != EOF) && (digit == '_') ) {
-    digit = ReadChar(sourceFile->handle);
-  }
+  if( (source->curCh != '_')
+    && (isalpha(source->curCh) == 0) ) { return 3; }
 
-  // Only read 09
-  if( (digit >= '0') && (digit == '9') ) { return digit; }
+  do {
+    if( identLen < IDENT_MAXINDEX ) {
+      tmpIdent[identLen] = source->curCh;
+      tmpIdent[identLen + 1] = '\0';
+    }
+    identLen++;
+  } while( ReadIdentChar(source) != EOF );
 
-  return EOF;
+
+  if( identLen == 0 ) { return 4; }
+
+  strcpy( ident, tmpIdent );
+
+  return 0;
 }
 
-int ReadBinaryDigit( RetFile* sourceFile ) {
+int ReadBinaryDigit( RetFile* source ) {
   int binDigit;
 
-  binDigit = ReadChar(sourceFile->handle);
+  binDigit = ReadChar(source);
 
   // Skip separators
   while( (binDigit != EOF) && (binDigit == '_') ) {
-    binDigit = ReadChar(sourceFile->handle);
+    binDigit = ReadChar(source);
   }
 
   // Only read 01
@@ -458,14 +486,14 @@ int ReadBinaryDigit( RetFile* sourceFile ) {
   return EOF;
 }
 
-int ReadOctalDigit( RetFile* sourceFile ) {
+int ReadOctalDigit( RetFile* source ) {
   int octalDigit;
 
-  octalDigit = ReadChar(sourceFile->handle);
+  octalDigit = ReadChar(source);
 
   // Skip separators
   while( (octalDigit != EOF) && (octalDigit == '_') ) {
-    octalDigit = ReadChar(sourceFile->handle);
+    octalDigit = ReadChar(source);
   }
 
   // Only read 07
@@ -474,14 +502,14 @@ int ReadOctalDigit( RetFile* sourceFile ) {
   return EOF;
 }
 
-int ReadHexDigit( RetFile* sourceFile ) {
+int ReadHexDigit( RetFile* source ) {
   int hexDigit;
 
-  hexDigit = ReadChar(sourceFile->handle);
+  hexDigit = ReadChar(source);
 
   // Skip separators
   while( (hexDigit != EOF) && (hexDigit == '_') ) {
-    hexDigit = ReadChar(sourceFile->handle);
+    hexDigit = ReadChar(source);
   }
 
   // Only read 09afAF
@@ -490,34 +518,192 @@ int ReadHexDigit( RetFile* sourceFile ) {
   return EOF;
 }
 
+int ReadDecimalDigit( RetFile* source ) {
+  int digit;
+
+  digit = ReadChar(source);
+
+  // Skip separators
+  while( (digit != EOF) && (digit == '_') ) {
+    digit = ReadChar(source);
+  }
+
+  // Only read 09
+  if( (digit >= '0') && (digit == '9') ) { return digit; }
+
+  return EOF;
+}
+
+int OpenRet( const char* fileName, RetFile* outsource ) {
+  if( fileName == NULL ) { return 1; }
+  if( outsource == NULL ) { return 2; }
+
+  CloseRet( outsource );
+
+  outsource->handle = fopen(fileName, "r");
+  if( outsource->handle == NULL ) { return 3; }
+
+  outsource->line = 1;
+  outsource->column = 1;
+
+  ReadChar( outsource );
+  ReadChar( outsource );
+
+  return 0;
+}
+
+void CloseRet( RetFile* outsource ) {
+  if( outsource && outsource->handle ) {
+    fclose( outsource->handle );
+    outsource->handle = NULL;
+
+    memset( outsource, 0, sizeof(RetFile) );
+    outsource->line = 1;
+    outsource->column = 1;
+
+    SkipNonterminals( outsource );
+  }
+}
+
 /*
  *  Symbol table declarations
  */
+
+SymTable symTable = {};
 
 /*
  *  C code generator declarations
  */
 
+CFile cGen = {};
+
 /*
  *  Parser declarations
  */
 
-int SkipSpace( RetFile* sourceFile ) {
-  if( sourceFile ) {
+int SkipSpace( RetFile* source ) {
+  if( source ) {
+    if( isspace(source->curCh) ) {
+      while( isspace(source->curCh) ) {
+        ReadChar( source );
+      }
+    }
+    return 0;
   }
-  return 0;
+  return 2;
 }
 
-int SkipComments( RetFile* sourceFile ) {
+int SkipComment( RetFile* source ) {
   unsigned commentLevel = 0;
-  if( sourceFile ) {
+  if( source == NULL ) { return 1; }
+
+  if( (source->curCh == '/') && (source->nextCh == '*') ) {
+    ReadChar( source );
+    ReadChar( source );
+    commentLevel++;
+
+    while( commentLevel ) {
+      if( source->curCh == EOF ) {
+        return 2;
+      }
+
+      if( (source->curCh == '/') && (source->nextCh == '*') ) {
+        ReadChar( source );
+        ReadChar( source );
+        if( commentLevel == ((unsigned)-1) ) {
+          return 3;
+        }
+        commentLevel++;
+        continue;
+      }
+
+      if( (source->curCh == '*') && (source->nextCh == '/') ) {
+        ReadChar( source );
+        ReadChar( source );
+        if( commentLevel == 0 ) {
+          return 4;
+        }
+        commentLevel--;
+        continue;
+      }
+      ReadChar( source );
+    }
+    return 0;
   }
+
+  if( (source->curCh == '/') && (source->nextCh == '/') ) {
+    ReadChar( source );
+    ReadChar( source );
+    while( source->curCh != '\n' ) {
+      if( source->curCh == EOF ) { return 2; }
+      ReadChar( source );
+    }
+    return 0;
+  }
+
+  return 2;
+}
+
+void SkipNonterminals( RetFile* source ) {
+  while( (SkipSpace(source) | SkipComment(source)) == 0 ) {
+    if( source->curCh == EOF ) {
+      break;
+    }
+  }
+}
+
+int Match( RetFile* source, const char* text ) {
+  const char* textCh = text;
+  unsigned startLine = 0;
+  unsigned startColumn = 0;
+  int result = 0;
+
+  if( text == NULL ) { return 1; }
+  if( source == NULL ) { return 2; }
+
+  startLine = source->line;
+  startColumn = source->column;
+
+  while( *textCh ) {
+    if( *textCh != source->curCh ) { return 3; }
+    ReadChar( source );
+    textCh++;
+  }
+
   return 0;
 }
 
-void SkipNonterminals( RetFile* sourceFile ) {
-  while( SkipSpace(sourceFile) && SkipComments(sourceFile) ) {
-  }
+// program IDENT
+int ParseProgram( RetFile* source, CFile* cgen, SymTable* symtab ) {
+  char programName[IDENT_MAXLEN] = {};
+  unsigned line;
+  unsigned column;
+  int result = 0;
+
+  if( source == NULL ) { return 1; }
+  if( cgen == NULL ) { return 2; }
+  if( symtab == NULL ) { return 3; }
+
+  SkipNonterminals( source );
+  line = source->line;
+  column = source->column;
+  result = Match( source, "program" );
+  if( result ) { Expected( line, column, "program" ); }
+
+  SkipNonterminals( source );
+  line = source->line;
+  column = source->column;
+  result = ReadIdent(source, programName);
+  if( result ) { Expected( line, column, "Identifier" ); }
+}
+
+int Parse( RetFile* source, CFile* cgen, SymTable* symtab ) {
+  int result = 0;
+
+  result = ParseProgram( source, cgen, symtab );
+  if( result ) { Error( result, "Parse > ParseProgram" ); }
+
+  return 0;
 }
 
 /*
@@ -525,6 +711,9 @@ void SkipNonterminals( RetFile* sourceFile ) {
  */
 
 void Cleanup() {
+  // Release memory used by source file
+  CloseRet( &retFile );
+
   // Release memory used by options
   FreePtr( &options.sourceFileName );
   FreePtr( &options.cFileName );
@@ -543,7 +732,13 @@ int main( int paramArgc, char* paramArgv[] ) {
   PrintBanner();
 
   result = ParseOptions(&options);
-  if( result != 0 ) { InternalError(result, "main > ParseOptions" ); }
+  if( result != 0 ) { Error(result, "main > ParseOptions" ); }
+
+  result = OpenRet(options.sourceFileName, &retFile);
+  if( result != 0 ) { Error(result, "main > OpenRet" ); }
+
+  result = Parse( &retFile, &cGen, &symTable );
+  if( result != 0 ) { Error(result, "main > Parse" ); }
 
   return 0;
 }

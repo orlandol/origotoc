@@ -62,17 +62,17 @@ void FreePtr( void** ptr );
  *  Path split functions
  */
 
-int JoinPath( const char* inDir, const char* inBaseName,
-    const char* inExt, char** outPath );
 int SplitPath( const char* fullPath, char** outDir,
     char** outBaseName, char** outExt );
+int JoinPath( const char* inDir, const char* inBaseName,
+    const char* inExt, char** outPath );
 
 /*
  *  OrigoToC program declarations
  */
 
-#define ORIGOTOC_VERSION MAKEVER(0, 1, 0, ALPHA_RELEASE)
-#define ORIGOTOC_VERSTRING "0.1.0 Alpha"
+#define ORIGOTOC_VERSION MAKEVER(0, 1, 1, ALPHA_RELEASE)
+#define ORIGOTOC_VERSTRING "0.1.1 Alpha"
 #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
 
 typedef struct OrigoOptions {
@@ -86,11 +86,15 @@ extern OrigoOptions options;
 
 void PrintBanner();
 void Usage();
+
 int ParseOptions( OrigoOptions* outOptions );
 
 /*
  *  Token declarations
  */
+
+#define IDENT_MAXLEN 32
+#define IDENT_MAXINDEX (IDENT_MAXLEN - 1)
 
 enum TokenCode {
   GeneralToken = 0,
@@ -105,8 +109,9 @@ enum TokenCode {
  *  Warning/error functions
  */
 
-void InternalError( unsigned code, const char* message );
+void Error( unsigned code, const char* message );
 void Expected( unsigned line, unsigned column, const char* message );
+void Unexpected( unsigned line, unsigned column, const char* message );
 
 /*
  *  Lexer declarations
@@ -118,35 +123,57 @@ typedef struct RetFile {
   unsigned line;
   unsigned column;
 
-  char ch;
+  char curCh;
+  char nextCh;
 } RetFile;
 
-int ReadChar( RetFile* sourceFile );
-int ReadIdentChar( RetFile* sourceFile );
-int ReadDecimalDigit( RetFile* sourceFile );
-int ReadBinaryDigit( RetFile* sourceFile );
-int ReadOctalDigit( RetFile* sourceFile );
-int ReadHexDigit( RetFile* sourceFile );
+extern RetFile retFile;
+
+int ReadChar( RetFile* source );
+
+int ReadIdentChar( RetFile* source );
+int ReadIdent( RetFile* source, char* ident );
+
+int ReadBinaryDigit( RetFile* source );
+int ReadOctalDigit( RetFile* source );
+int ReadHexDigit( RetFile* source );
+int ReadDecimalDigit( RetFile* source );
+
+int OpenRet( const char* fileName, RetFile* outsource );
+void CloseRet( RetFile* outsource );
 
 /*
  *  Symbol table declarations
  */
 
+typedef struct SymTable {
+} SymTable;
+
+extern SymTable symtab;
 /*
  *  C code generator declarations
  */
 
 typedef struct CFile {
-  FILE* handle;
+  FILE* cHandle;
+  FILE* hHandle;
 } CFile;
+
+extern CFile cGen;
 
 /*
  *  Parser declarations
  */
 
-int SkipSpace( RetFile* sourceFile );
-int SkipComments( RetFile* sourceFile );
-void SkipNonterminals( RetFile* sourceFile );
+int SkipSpace( RetFile* source );
+int SkipComment( RetFile* source );
+void SkipNonterminals( RetFile* source );
+
+int Match( RetFile* source, const char* text );
+
+int ParseProgram( RetFile* source, CFile* cgen, SymTable* symTable );
+
+int Parse( RetFile* source, CFile* cgen, SymTable* symTable );
 
 /*
  *  Main program declarations
