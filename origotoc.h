@@ -56,23 +56,23 @@ extern char** argv;
 /*
  *  Helper functions
  */
-void FreePtr( void** ptr );
+void FreePtr( void** ptrVar );
 
 /*
  *  Path split functions
  */
 
-int SplitPath( const char* fullPath, char** outDir,
-    char** outBaseName, char** outExt );
-int JoinPath( const char* inDir, const char* inBaseName,
-    const char* inExt, char** outPath );
+int SplitPath( const char* fromFullPath, char** toDir,
+    char** toBaseName, char** toExt );
+int JoinPath( const char* fromDir, const char* fromBaseName,
+    const char* fromExt, char** toFullPath );
 
 /*
  *  OrigoToC program declarations
  */
 
-#define ORIGOTOC_VERSION MAKEVER(0, 1, 1, ALPHA_RELEASE)
-#define ORIGOTOC_VERSTRING "0.1.1 Alpha"
+#define ORIGOTOC_VERSION MAKEVER(0, 1, 2, ALPHA_RELEASE)
+#define ORIGOTOC_VERSTRING "0.1.2 Alpha"
 #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
 
 typedef struct OrigoOptions {
@@ -87,7 +87,7 @@ extern OrigoOptions options;
 void PrintBanner();
 void Usage();
 
-int ParseOptions( OrigoOptions* outOptions );
+int ParseOptions( OrigoOptions* toOptionsVar );
 
 /*
  *  Token declarations
@@ -101,17 +101,56 @@ enum TokenCode {
   tkEOF,
   tkEOL,
 
-  KeywordToken = 1024,
-  kwProgram
+  TopLevelKeyword = 1024,
+  tlEnum,
+  tlUnion,
+  tlStruct,
+  tlType,
+  tlConst,
+  tlVar,
+  tlFuncDecl,
+  tlImport,
+  tlFunc,
+  tlObject,
+  tlInterface,
+  tlMethod,
+  tlRun,
+
+  StatementKeyword = 2048,
+  stmtBind,
+  stmtElse,
+  stmtElseIf,
+  stmtEndFor,
+  stmtEndIf,
+  stmtEndWhile,
+  stmtBreak,
+  stmtNext,
+  stmtFor,
+  stmtGoto,
+  stmtIf,
+  stmtRepeat,
+  stmtWhen,
+  stmtWhile
 };
 
 /*
  *  Warning/error functions
  */
 
-void Error( unsigned code, const char* message );
-void Expected( unsigned line, unsigned column, const char* message );
-void Unexpected( unsigned line, unsigned column, const char* message );
+void Error( unsigned ofCode, const char* message );
+void Expected( unsigned onLine, unsigned onColumn,
+  const char* message );
+void Unexpected( unsigned onLine, unsigned onColumn,
+  const char* message );
+
+/*
+ *  Symbol table declarations
+ */
+
+typedef struct SymTable {
+} SymTable;
+
+extern SymTable symtab;
 
 /*
  *  Lexer declarations
@@ -123,33 +162,40 @@ typedef struct RetFile {
   unsigned line;
   unsigned column;
 
+  int runDeclared;
+
   char curCh;
   char nextCh;
 } RetFile;
 
+typedef struct KeywordItem {
+  const char* name;
+  unsigned tokenCode;
+} KeywordItem;
+
+extern const KeywordItem topLevelKeyword[];
+extern const KeywordItem statementKeyword[];
+extern const KeywordItem reservedWord[];
+
 extern RetFile retFile;
 
-int ReadChar( RetFile* source );
+int ReadChar( RetFile* fromSource );
 
-int ReadIdentChar( RetFile* source );
-int ReadIdent( RetFile* source, char* ident );
+int ReadIdentChar( RetFile* fromSource );
+int ReadIdent( RetFile* fromSource, char* toIdent );
+unsigned FindTopLevelKeyword( const char* identName );
+int ReadTopLevelKeyword( RetFile* fromSource, unsigned* toTokenCode );
 
-int ReadBinaryDigit( RetFile* source );
-int ReadOctalDigit( RetFile* source );
-int ReadHexDigit( RetFile* source );
-int ReadDecimalDigit( RetFile* source );
+int ReadBinaryDigit( RetFile* fromSource );
+int ReadOctalDigit( RetFile* fromSource );
+int ReadHexDigit( RetFile* fromSource );
+int ReadDecimalDigit( RetFile* fromSource );
 
-int OpenRet( const char* fileName, RetFile* outsource );
-void CloseRet( RetFile* outsource );
+int ReadString( RetFile* fromSource, char** toString );
 
-/*
- *  Symbol table declarations
- */
+int OpenRet( const char* fileName, RetFile* toSourceVar );
+void CloseRet( RetFile* sourceVar );
 
-typedef struct SymTable {
-} SymTable;
-
-extern SymTable symtab;
 /*
  *  C code generator declarations
  */
@@ -165,15 +211,29 @@ extern CFile cGen;
  *  Parser declarations
  */
 
-int SkipSpace( RetFile* source );
-int SkipComment( RetFile* source );
-void SkipNonterminals( RetFile* source );
+int SkipSpace( RetFile* fromSource );
+int SkipComment( RetFile* fromSource );
+void SkipNonterminals( RetFile* fromSource );
 
-int Match( RetFile* source, const char* text );
+int Match( RetFile* fromSource, const char* withText );
 
-int ParseProgram( RetFile* source, CFile* cgen, SymTable* symTable );
+int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
-int Parse( RetFile* source, CFile* cgen, SymTable* symTable );
+int ParseEnum( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseUnion( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseStruct( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseType( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseConst( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseVar( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseFuncDecl( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseImport( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseFunc( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseObject( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseInterface( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseMethod( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+int ParseRun( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
+int Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
 /*
  *  Main program declarations
