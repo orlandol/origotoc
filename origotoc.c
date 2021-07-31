@@ -1,6 +1,7 @@
 /* 
  * MIT License
  * 
+ * OrigoToC 0.1.3 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -52,7 +53,8 @@ void FreePtr( void** ptrVar ) {
  *  Path split functions
  */
 int SplitPath( const char* fromFullPath, char** toDir,
-    char** toBaseName, char** toExt ) {
+  char** toBaseName, char** toExt ) {
+
   const char* pathCh;
   const char* pathDir;
   const char* pathBaseName;
@@ -157,7 +159,8 @@ ExitError:
 }
 
 int JoinPath( const char* fromDir, const char* fromBaseName,
-    const char* fromExt, char** toFullPath ) {
+  const char* fromExt, char** toFullPath ) {
+
   char* newPath = NULL;
   size_t totalLen;
   const char* tmpCh;
@@ -245,7 +248,8 @@ int JoinPath( const char* fromDir, const char* fromBaseName,
 OrigoOptions options = {};
 
 void PrintBanner() {
-  printf( "OrigoToC %s %s\n\n", ORIGOTOC_VERSTRING, ORIGOTOC_COPYRIGHT );
+  printf( "OrigoToC %s (0x%.8X)\n%s\n\n",
+    ORIGOTOC_VERSTRING, ORIGOTOC_VERSION, ORIGOTOC_COPYRIGHT );
 }
 
 void Usage() {
@@ -384,6 +388,11 @@ void Error( unsigned ofCode, const char* withMessage ) {
   exit(1);
 }
 
+void DuplicateIdentifier( unsigned onLine, unsigned onColumn, const char* message ) {
+  printf( "Duplicate Identifier[L%u,C%u]: %s\n", onLine, onColumn, message );
+  exit(1);
+}
+
 void Expected( unsigned onLine, unsigned onColumn, const char* message ) {
   printf( "Expected[L%u,C%u]: %s\n", onLine, onColumn, message );
   exit(1);
@@ -492,10 +501,7 @@ int ReadChar( RetFile* fromSource ) {
 
     if( fromSource->nextCh == '\r' ) {
       tmpCh = fgetc(fromSource->handle);
-      if( tmpCh != '\n' ) {
-        ungetc( tmpCh, fromSource->handle );
-      }
-
+      if( tmpCh != '\n' ) { ungetc( tmpCh, fromSource->handle ); }
       fromSource->nextCh = '\r';
     }
 
@@ -816,6 +822,15 @@ int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) 
   if( result ) { Expected( line, column, "Identifier" ); }
 }
 
+int ParseTypeSpec( RetFile* fromSource, TypeSpec* toTypeSpec ) {
+  int result = 0;
+
+  if( fromSource == NULL ) { return 1; }
+  if( toTypeSpec == NULL ) { return 2; }
+
+  return 3;
+}
+
 int ParseEnum( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
   if( fromSource == NULL ) { return 1; }
   if( toCgen == NULL ) { return 2; }
@@ -875,6 +890,59 @@ int ParseImport( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
   return 4;
 }
 
+void ParseLocalVar( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, SymTable* usingLocalTable,
+  char* returnIdent ) {
+
+  char ident[IDENT_MAXLEN] = {};
+  unsigned curLine;
+  unsigned curColumn;
+  int result = 0;
+
+  if( fromSource == NULL ) { Error( 1, "ParseLocalVar" ); }
+  if( toCgen == NULL ) { Error( 2, "ParseLocalVar" ); }
+  if( usingSymTable == NULL ) { Error( 3, "ParseLocalVar" ); }
+  if( usingLocalTable == NULL ) { Error( 4, "ParseLocalVar" ); }
+
+  do {
+    SkipNonterminals( fromSource );
+    curLine = fromSource->line;
+    curColumn = fromSource->column;
+    result = ReadIdent(fromSource, ident);
+    if( strcmp(ident, "end") == 0 ) { return; }
+  } while( fromSource->curCh != EOF );
+
+  SkipNonterminals( fromSource );
+  curLine = fromSource->line;
+  curColumn = fromSource->column;
+  result = ReadIdent(fromSource, ident);
+  if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+}
+
+// Parse if
+int ParseStatement( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident ) {
+
+  if( fromSource == NULL ) { return 1; }
+  if( toCgen == NULL ) { return 2; }
+  if( usingSymTable == NULL ) { return 3; }
+  if( (ident == NULL) || (*ident == '\0') ) { return 4; }
+
+  return 5;
+}
+
+// Parse return
+int ParseFuncStatement( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident ) {
+
+  if( fromSource == NULL ) { return 1; }
+  if( toCgen == NULL ) { return 2; }
+  if( usingSymTable == NULL ) { return 3; }
+  if( (ident == NULL) || (*ident == '\0') ) { return 4; }
+
+  return 5;
+}
+
 int ParseFunc( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
   if( fromSource == NULL ) { return 1; }
   if( toCgen == NULL ) { return 2; }
@@ -903,27 +971,81 @@ int ParseMethod( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
   return 4;
 }
 
-int ParseRun( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
-  if( fromSource == NULL ) { return 1; }
-  if( toCgen == NULL ) { return 2; }
-  if( usingSymTable == NULL ) { return 3; }
-  return 4;
+// run var...end statement... end
+void ParseRun( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, char* returnIdent ) {
+
+  SymTable localTable = {};
+  char ident[IDENT_MAXLEN] = {};
+  unsigned curLine = 0;
+  unsigned curColumn = 0;
+  int result = 0;
+
+  if( fromSource == NULL ) { Error( 1, "ParseRun" ); }
+  if( toCgen == NULL ) { Error( 2, "ParseRun" ); }
+  if( usingSymTable == NULL ) { Error( 3, "ParseRun" ); }
+  if( returnIdent == NULL ) { Error( 4, "ParseRun" ); }
+
+  if( fromSource->runDeclared ) {
+    DuplicateIdentifier(curLine, curColumn, "run already declared.");
+  }
+  fromSource->runDeclared = -1;
+
+  // Skip run
+  SkipNonterminals( fromSource );
+  curLine = fromSource->line;
+  curColumn = fromSource->column;
+  result = ReadIdent(fromSource, ident);
+  if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+
+  // Parse local var declarations
+  if( strcmp(ident, "var") == 0 ) {
+    ParseLocalVar(fromSource, toCgen, usingSymTable, &localTable, ident);
+  }
+
+  // Parse statements
+  do {
+    SkipNonterminals( fromSource );
+    curLine = fromSource->line;
+    curColumn = fromSource->column;
+    result = ReadIdent(fromSource, ident);
+    if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+
+    if( strcmp(ident, "end") == 0 ) { return; }
+
+  } while( fromSource->curCh != EOF );
+
+  // Skip end
+  SkipNonterminals( fromSource );
+  curLine = fromSource->line;
+  curColumn = fromSource->column;
+  result = ReadIdent(fromSource, ident);
+  if( result ) { Error(result, "ParseRun > local var"); }
 }
 
-int Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
+void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
   char keyword[IDENT_MAXLEN] = {};
   unsigned keywordToken = 0;
+  unsigned curLine = 0;
+  unsigned curColumn = 0;
   int declResult = 0;
   int result = 0;
 
-  result = ParseProgram(fromSource, toCgen, usingSymTable);
-  if( result ) { Error( result, "Parse > ParseProgram" ); }
+  ParseProgram( fromSource, toCgen, usingSymTable );
 
   while( fromSource->curCh != EOF ) {
     SkipNonterminals( fromSource );
+    curLine = fromSource->line;
+    curColumn = fromSource->column;
+    keywordToken = 0;
     result = ReadTopLevelKeyword(fromSource, &keywordToken);
-    if( result ) { Error(result, "Parse > ReadTopLevelKeyword"); }
+    if( result ) {
+      if( fromSource->curCh == EOF ) { return; }
+      Error(result, "Parse > ReadTopLevelKeyword");
+    }
 
+    declResult = 0;
+    result = 0;
     switch( keywordToken ) {
     case tlEnum:
       declResult = ParseEnum(fromSource, toCgen, usingSymTable);
@@ -985,22 +1107,19 @@ int Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
       result = 15;
       break;
 
-    case tlRun:
-      declResult = ParseRun(fromSource, toCgen, usingSymTable);
-      result = 16;
+    case tlRun: 
+      ParseRun(fromSource, toCgen, usingSymTable, keyword);
       break;
 
     default:
-      result = 17;
+      Expected( curLine, curColumn, "top level declaration" );
     }
 
-    if( result ) {
+    if( declResult ) {
       printf( "Parse[declResult:%u]\n", declResult );
       Error( result, "Parse > switch" );
     }
   }
-
-  return 0;
 }
 
 /*
@@ -1034,8 +1153,7 @@ int main( int paramArgc, char* paramArgv[] ) {
   result = OpenRet(options.sourceFileName, &retFile);
   if( result != 0 ) { Error(result, "main > OpenRet" ); }
 
-  result = Parse( &retFile, &cGen, &symTable );
-  if( result != 0 ) { Error(result, "main > Parse" ); }
+  Parse( &retFile, &cGen, &symTable );
 
   return 0;
 }

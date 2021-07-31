@@ -10,4 +10,5 @@
 program test
 
 run
+  var end
 end

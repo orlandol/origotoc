@@ -1,6 +1,7 @@
 /* 
  * MIT License
  * 
+ * OrigoToC 0.1.3 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -26,25 +27,26 @@
 #define H_ORIGOTOC
 
 /*
- *  Version declarations
+ *  Version format Maj.Min.Patch.ReleaseType declarations
  */
-#define ALPHA_RELEASE 0
-#define RSVD1_RELEASE 1
-#define BETA_RELEASE 2
-#define RELEASE_CANDIDATE 3
-#define STABLE_RELEASE 4
-#define HOTFIX_RELEASE 5
-#define LTS_RELEASE 6
-#define FINAL_RELEASE 7
+#define EXPERIMENTAL_RELEASE 7
+#define ALPHA_RELEASE 8
+#define GAMMA_RELEASE 9
+#define BETA_RELEASE 10
+#define RELEASE_CANDIDATE 11
+#define STABLE_RELEASE 12
+#define HOTFIX_RELEASE 13
+#define LTS_RELEASE 14
+#define FINAL_RELEASE 15
 
-#define MAKEVER(major, minor, patch, release)\
+#define MAKEVEREXT(major, minor, patch, release)\
   ((((major) & 0xFF) << 24) | (((minor) & 0xFF) << 16) |\
-   (((patch) & 0x1FFF) << 3) | ((release) & 0x07))
+   (((patch) & 0x0FFF) << 4) | ((release) & 0x000F))
 
-#define MAJORVER(version) (((version) >> 24) & 0xFF)
-#define MINORVER(version) (((version) >> 16) & 0xFF)
-#define PATCHVER(version) (((version) >> 3) & 0x1FFF)
-#define RELEASETYPE(version) ((version) & 0x7)
+#define MAJORVEREXT(version) (((version) >> 24) & 0xFF)
+#define MINORVEREXT(version) (((version) >> 16) & 0xFF)
+#define PATCHVEREXT(version) (((version) >> 4) & 0x0FFF)
+#define RELEASETYPEEXT(version) ((version) & 0x000F)
 
 /*
  *  Global variables
@@ -71,8 +73,8 @@ int JoinPath( const char* fromDir, const char* fromBaseName,
  *  OrigoToC program declarations
  */
 
-#define ORIGOTOC_VERSION MAKEVER(0, 1, 2, ALPHA_RELEASE)
-#define ORIGOTOC_VERSTRING "0.1.2 Alpha"
+#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 3, ALPHA_RELEASE)
+#define ORIGOTOC_VERSTRING "0.1.3 Alpha"
 #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
 
 typedef struct OrigoOptions {
@@ -95,11 +97,17 @@ int ParseOptions( OrigoOptions* toOptionsVar );
 
 #define IDENT_MAXLEN 32
 #define IDENT_MAXINDEX (IDENT_MAXLEN - 1)
+#define IDENTPAIR_MAXLEN 64
+#define IDENTPAIR_MAXINDEX (IDENTPAIR_MAXLEN - 1)
+
+#define TOKENSTR_MAXLEN 2048
+#define TOKENSTR_MAXINDEX (TOKENSTR_MAXLEN - 1)
 
 enum TokenCode {
   GeneralToken = 0,
   tkEOF,
   tkEOL,
+  tkIdent,
 
   TopLevelKeyword = 1024,
   tlEnum,
@@ -138,6 +146,9 @@ enum TokenCode {
  */
 
 void Error( unsigned ofCode, const char* message );
+
+void IdentDuplicated( unsigned onLine, unsigned onColumn,
+  const char* message );
 void Expected( unsigned onLine, unsigned onColumn,
   const char* message );
 void Unexpected( unsigned onLine, unsigned onColumn,
@@ -147,7 +158,15 @@ void Unexpected( unsigned onLine, unsigned onColumn,
  *  Symbol table declarations
  */
 
+typedef struct TypeSpec {
+  int pointerType;
+  char* name;
+  unsigned baseType;
+  unsigned dimCount;
+} TypeSpec;
+
 typedef struct SymTable {
+  unsigned tokenCode;
 } SymTable;
 
 extern SymTable symtab;
@@ -219,21 +238,42 @@ int Match( RetFile* fromSource, const char* withText );
 
 int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
+int ParseTypeSpec( RetFile* fromSource, TypeSpec* toTypeSpec );
+
 int ParseEnum( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
 int ParseUnion( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
 int ParseStruct( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
 int ParseType( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
 int ParseConst( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
 int ParseVar( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
 int ParseFuncDecl( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 int ParseImport( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
+void ParseLocalVar( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, SymTable* usingLocalTable,
+  char* returnIdent );
+
+int ParseStatement( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident );
+int ParseFuncStatement( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident );
+
 int ParseFunc( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+
 int ParseObject( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 int ParseInterface( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 int ParseMethod( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
-int ParseRun( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
-int Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
+void ParseRun( RetFile* fromSource, CFile* toCgen,
+  SymTable* usingSymTable, char* returnIdent );
+
+void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
 /*
  *  Main program declarations
