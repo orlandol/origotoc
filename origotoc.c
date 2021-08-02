@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.3 Alpha
+ * OrigoToC 0.1.4 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -388,6 +388,13 @@ void Error( unsigned ofCode, const char* withMessage ) {
   exit(1);
 }
 
+void ImplementationPending( unsigned onLine, unsigned onColumn,
+  const char* message ) {
+
+  printf( "Implementation Pending[L%u,C%u]: %s\n", onLine, onColumn, message );
+  exit(1);
+}
+
 void DuplicateIdentifier( unsigned onLine, unsigned onColumn, const char* message ) {
   printf( "Duplicate Identifier[L%u,C%u]: %s\n", onLine, onColumn, message );
   exit(1);
@@ -412,6 +419,25 @@ SymTable symTable = {};
 /*
  *  Lexer declarations
  */
+
+const KeywordItem baseTypeName[] = {
+  "bool", baseBool,
+  "char", baseChar,
+  "fsize", baseFsize,
+  "int", baseInt,
+  "int16", baseInt16,
+  "int32", baseInt32,
+  "int64", baseInt64,
+  "int8", baseInt8,
+  "size", baseSize,
+  "uint", baseUint,
+  "uint16", baseUint16,
+  "uint32", baseUint32,
+  "uint64", baseUint64,
+  "uint8", baseUint8
+};
+const size_t baseTypeCount = sizeof(baseTypeName)
+  / sizeof(baseTypeName[0]);
 
 const KeywordItem topLevelKeyword[] = {
   "const", tlConst,
@@ -452,7 +478,9 @@ const size_t statementCount = sizeof(statementKeyword)
 
 const KeywordItem reservedWord[] = {
   "bind", stmtBind,
+  "bool", baseBool,
   "break", stmtBreak,
+  "char", baseChar,
   "const", tlConst,
   "else", stmtElse,
   "elseif", stmtElseIf,
@@ -461,19 +489,31 @@ const KeywordItem reservedWord[] = {
   "endwhile", stmtEndWhile,
   "enum", tlEnum,
   "for", stmtFor,
+  "fsize", baseFsize,
   "func", tlFunc,
   "funcdecl", tlFuncDecl,
   "goto", stmtGoto,
   "if", stmtIf,
   "import", tlImport,
+  "int", baseInt,
+  "int16", baseInt16,
+  "int32", baseInt32,
+  "int64", baseInt64,
+  "int8", baseInt8,
   "interface", tlInterface,
   "method", tlMethod,
   "next", stmtNext,
   "object", tlObject,
   "repeat", stmtRepeat,
   "run", tlRun,
+  "size", baseSize,
   "struct", tlStruct,
   "type", tlType,
+  "uint", baseUint,
+  "uint16", baseUint16,
+  "uint32", baseUint32,
+  "uint64", baseUint64,
+  "uint8", baseUint8,
   "union", tlUnion,
   "var", tlVar,
   "when", stmtWhen,
@@ -483,6 +523,29 @@ const size_t reservedCount = sizeof(reservedWord)
   / sizeof(reservedWord[0]);
 
 RetFile retFile = {};
+
+void MarkToken( RetFile* fromSource ) {
+  if( fromSource == NULL ) { Error( 1, "MarkToken" ); }
+
+  fromSource->markedPos = ftell(fromSource->handle);
+  fromSource->markedLine = fromSource->line;
+  fromSource->markedColumn = fromSource->column;
+}
+
+void ReturnToken( RetFile* fromSource ) {
+  if( fromSource == NULL ) { Error( 1, "ReturnToken" ); }
+
+  if( fseek(fromSource->handle, fromSource->markedPos, SEEK_SET) ) {
+    Error( 2, "ReturnToken" );
+  }
+
+  fromSource->line = fromSource->markedLine;
+  fromSource->column = fromSource->markedColumn;
+
+  fromSource->markedPos = 0;
+  fromSource->markedLine = 0;
+  fromSource->markedColumn = 0;
+}
 
 int ReadChar( RetFile* fromSource ) {
   int columnInc = 1;
@@ -501,7 +564,11 @@ int ReadChar( RetFile* fromSource ) {
 
     if( fromSource->nextCh == '\r' ) {
       tmpCh = fgetc(fromSource->handle);
-      if( tmpCh != '\n' ) { ungetc( tmpCh, fromSource->handle ); }
+      if( tmpCh != '\n' ) {
+        if( fseek( fromSource->handle, -sizeof(char), SEEK_CUR ) != 0 ) {
+          Error( 2, "ReadChar" );
+        }
+      }
       fromSource->nextCh = '\r';
     }
 
@@ -531,6 +598,8 @@ int ReadIdent( RetFile* fromSource, char* toIdent ) {
 
   if( fromSource == NULL ) { return 1; }
   if( toIdent == NULL ) { return 2; }
+
+  MarkToken( fromSource );
 
   if( (fromSource->curCh != '_')
     && (isalpha(fromSource->curCh) == 0) ) { return 3; }
@@ -659,9 +728,21 @@ int ReadDecimalDigit( RetFile* fromSource ) {
   return EOF;
 }
 
+int ReadNumber( RetFile* fromSource, unsigned* toUint ) {
+  if( fromSource == NULL ) { return 1; }
+  if( toUint == NULL ) { return 2; }
+
+  MarkToken( fromSource );
+
+  return 3;
+}
+
 int ReadString( RetFile* fromSource, char** toString ) {
   if( fromSource == NULL ) { return 1; }
   if( toString == NULL ) { return 2; }
+
+  MarkToken( fromSource );
+
   return 3;
 }
 
@@ -786,6 +867,8 @@ int Match( RetFile* fromSource, const char* withText ) {
   if( withText == NULL ) { return 1; }
   if( fromSource == NULL ) { return 2; }
 
+  MarkToken( fromSource );
+
   startLine = fromSource->line;
   startColumn = fromSource->column;
 
@@ -822,13 +905,11 @@ int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) 
   if( result ) { Expected( line, column, "Identifier" ); }
 }
 
-int ParseTypeSpec( RetFile* fromSource, TypeSpec* toTypeSpec ) {
-  int result = 0;
+void ParseTypeSpec( RetFile* fromSource, SymTable* usingSymTable,
+  TypeSpec* toTypeSpec ) {
 
-  if( fromSource == NULL ) { return 1; }
-  if( toTypeSpec == NULL ) { return 2; }
-
-  return 3;
+  if( fromSource == NULL ) { Error( 1, "ParseTypeSpec" ); }
+  if( toTypeSpec == NULL ) { Error( 2, "ParseTypeSpec" ); }
 }
 
 int ParseEnum( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
@@ -891,8 +972,7 @@ int ParseImport( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
 }
 
 void ParseLocalVar( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, SymTable* usingLocalTable,
-  char* returnIdent ) {
+  SymTable* usingSymTable, SymTable* usingLocalTable ) {
 
   char ident[IDENT_MAXLEN] = {};
   unsigned curLine;
@@ -909,36 +989,32 @@ void ParseLocalVar( RetFile* fromSource, CFile* toCgen,
     curLine = fromSource->line;
     curColumn = fromSource->column;
     result = ReadIdent(fromSource, ident);
-    if( strcmp(ident, "end") == 0 ) { return; }
-  } while( fromSource->curCh != EOF );
 
-  SkipNonterminals( fromSource );
-  curLine = fromSource->line;
-  curColumn = fromSource->column;
-  result = ReadIdent(fromSource, ident);
-  if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+    if( strcmp(ident, "end") == 0 ) { return; }
+
+    ///TODO: Parse local variable declaration.
+    ImplementationPending( curLine, curColumn, "Local variable declaration" );
+  } while( fromSource->curCh != EOF );
 }
 
 // Parse if
 int ParseStatement( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident ) {
+  SymTable* usingSymTable, SymTable* usingLocalTable ) {
 
   if( fromSource == NULL ) { return 1; }
   if( toCgen == NULL ) { return 2; }
   if( usingSymTable == NULL ) { return 3; }
-  if( (ident == NULL) || (*ident == '\0') ) { return 4; }
 
   return 5;
 }
 
 // Parse return
 int ParseFuncStatement( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident ) {
+  SymTable* usingSymTable, SymTable* usingLocalTable ) {
 
   if( fromSource == NULL ) { return 1; }
   if( toCgen == NULL ) { return 2; }
   if( usingSymTable == NULL ) { return 3; }
-  if( (ident == NULL) || (*ident == '\0') ) { return 4; }
 
   return 5;
 }
@@ -973,7 +1049,7 @@ int ParseMethod( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
 
 // run var...end statement... end
 void ParseRun( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, char* returnIdent ) {
+  SymTable* usingSymTable ) {
 
   SymTable localTable = {};
   char ident[IDENT_MAXLEN] = {};
@@ -984,10 +1060,9 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
   if( fromSource == NULL ) { Error( 1, "ParseRun" ); }
   if( toCgen == NULL ) { Error( 2, "ParseRun" ); }
   if( usingSymTable == NULL ) { Error( 3, "ParseRun" ); }
-  if( returnIdent == NULL ) { Error( 4, "ParseRun" ); }
 
   if( fromSource->runDeclared ) {
-    DuplicateIdentifier(curLine, curColumn, "run already declared.");
+    DuplicateIdentifier(fromSource->markedLine, fromSource->markedColumn, "run already declared.");
   }
   fromSource->runDeclared = -1;
 
@@ -999,28 +1074,27 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
   if( result ) { Expected(curLine, curColumn, "var block or statement"); }
 
   // Parse local var declarations
-  if( strcmp(ident, "var") == 0 ) {
-    ParseLocalVar(fromSource, toCgen, usingSymTable, &localTable, ident);
-  }
+  while( strcmp(ident, "var") == 0 ) {
+    ParseLocalVar(fromSource, toCgen, usingSymTable, &localTable);
 
-  // Parse statements
-  do {
+    // Skip end
     SkipNonterminals( fromSource );
     curLine = fromSource->line;
     curColumn = fromSource->column;
     result = ReadIdent(fromSource, ident);
     if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+  }
 
-    if( strcmp(ident, "end") == 0 ) { return; }
+  // Parse statements
+  do {
+    if( strcmp(ident, "end") == 0 ) { break; }
 
+    SkipNonterminals( fromSource );
+    curLine = fromSource->line;
+    curColumn = fromSource->column;
+    result = ReadIdent(fromSource, ident);
+    if( result ) { Expected(curLine, curColumn, "var block or statement"); }
   } while( fromSource->curCh != EOF );
-
-  // Skip end
-  SkipNonterminals( fromSource );
-  curLine = fromSource->line;
-  curColumn = fromSource->column;
-  result = ReadIdent(fromSource, ident);
-  if( result ) { Error(result, "ParseRun > local var"); }
 }
 
 void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
@@ -1108,7 +1182,7 @@ void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
       break;
 
     case tlRun: 
-      ParseRun(fromSource, toCgen, usingSymTable, keyword);
+      ParseRun(fromSource, toCgen, usingSymTable);
       break;
 
     default:

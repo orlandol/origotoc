@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.3 Alpha
+ * OrigoToC 0.1.4 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -73,8 +73,8 @@ int JoinPath( const char* fromDir, const char* fromBaseName,
  *  OrigoToC program declarations
  */
 
-#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 3, ALPHA_RELEASE)
-#define ORIGOTOC_VERSTRING "0.1.3 Alpha"
+#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 4, ALPHA_RELEASE)
+#define ORIGOTOC_VERSTRING "0.1.4 Alpha"
 #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
 
 typedef struct OrigoOptions {
@@ -104,12 +104,12 @@ int ParseOptions( OrigoOptions* toOptionsVar );
 #define TOKENSTR_MAXINDEX (TOKENSTR_MAXLEN - 1)
 
 enum TokenCode {
-  GeneralToken = 0,
+  generalToken = (1024 * 0),
   tkEOF,
   tkEOL,
   tkIdent,
 
-  TopLevelKeyword = 1024,
+  topLevelToken = (1024 * 1),
   tlEnum,
   tlUnion,
   tlStruct,
@@ -124,7 +124,31 @@ enum TokenCode {
   tlMethod,
   tlRun,
 
-  StatementKeyword = 2048,
+  typeToken = (1024 * 2),
+  ptrData,
+  baseInt,
+  baseInt8,
+  baseInt16,
+  baseInt32,
+  baseInt64,
+  baseUint,
+  baseUint8,
+  baseUint16,
+  baseUint32,
+  baseUint64,
+  baseSize,
+  baseFsize,
+  baseChar,
+  baseBool,
+  typeEnum,
+  typeUnion,
+  typeStruct,
+  typeFunc,
+  typeObject,
+  typeInterface,
+  typeMethod,
+
+  statementToken = (1024 * 3),
   stmtBind,
   stmtElse,
   stmtElseIf,
@@ -147,7 +171,10 @@ enum TokenCode {
 
 void Error( unsigned ofCode, const char* message );
 
-void IdentDuplicated( unsigned onLine, unsigned onColumn,
+void ImplementationPending( unsigned onLine, unsigned onColumn,
+  const char* message );
+
+void DuplicateIdentifier( unsigned onLine, unsigned onColumn,
   const char* message );
 void Expected( unsigned onLine, unsigned onColumn,
   const char* message );
@@ -185,6 +212,10 @@ typedef struct RetFile {
 
   char curCh;
   char nextCh;
+
+  size_t markedPos;
+  unsigned markedLine;
+  unsigned markedColumn;
 } RetFile;
 
 typedef struct KeywordItem {
@@ -192,11 +223,15 @@ typedef struct KeywordItem {
   unsigned tokenCode;
 } KeywordItem;
 
+extern const KeywordItem baseTypeName[];
 extern const KeywordItem topLevelKeyword[];
 extern const KeywordItem statementKeyword[];
 extern const KeywordItem reservedWord[];
 
 extern RetFile retFile;
+
+void MarkToken( RetFile* fromSource );
+void ReturnToken( RetFile* fromSource );
 
 int ReadChar( RetFile* fromSource );
 
@@ -238,7 +273,8 @@ int Match( RetFile* fromSource, const char* withText );
 
 int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
-int ParseTypeSpec( RetFile* fromSource, TypeSpec* toTypeSpec );
+void ParseTypeSpec( RetFile* fromSource, SymTable* usingSymTable,
+  TypeSpec* toTypeSpec );
 
 int ParseEnum( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
@@ -256,13 +292,12 @@ int ParseFuncDecl( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable )
 int ParseImport( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
 void ParseLocalVar( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, SymTable* usingLocalTable,
-  char* returnIdent );
+  SymTable* usingSymTable, SymTable* usingLocalTable );
 
 int ParseStatement( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident );
+  SymTable* usingSymTable, SymTable* usingLocalTable );
 int ParseFuncStatement( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, SymTable* usingLocalTable, char* ident );
+  SymTable* usingSymTable, SymTable* usingLocalTable );
 
 int ParseFunc( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
@@ -271,7 +306,7 @@ int ParseInterface( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable 
 int ParseMethod( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
 void ParseRun( RetFile* fromSource, CFile* toCgen,
-  SymTable* usingSymTable, char* returnIdent );
+  SymTable* usingSymTable );
 
 void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable );
 
