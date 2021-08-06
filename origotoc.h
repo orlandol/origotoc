@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.4 Alpha
+ * OrigoToC 0.1.5 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -73,8 +73,8 @@ int JoinPath( const char* fromDir, const char* fromBaseName,
  *  OrigoToC program declarations
  */
 
-#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 4, ALPHA_RELEASE)
-#define ORIGOTOC_VERSTRING "0.1.4 Alpha"
+#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 5, ALPHA_RELEASE)
+#define ORIGOTOC_VERSTRING "0.1.5 Alpha"
 #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
 
 typedef struct OrigoOptions {
@@ -110,7 +110,7 @@ enum TokenCode {
   tkIdent,
 
   topLevelToken = (1024 * 1),
-  tlEnum,
+  tlEnum = topLevelToken,
   tlUnion,
   tlStruct,
   tlType,
@@ -125,8 +125,12 @@ enum TokenCode {
   tlRun,
 
   typeToken = (1024 * 2),
-  ptrData,
+  ptrData = typeToken,
+    firstPtrType = ptrData,
+    lastPtrType = ptrData,
+
   baseInt,
+    firstBaseType = baseInt,
   baseInt8,
   baseInt16,
   baseInt32,
@@ -140,16 +144,20 @@ enum TokenCode {
   baseFsize,
   baseChar,
   baseBool,
+    lastBaseType = baseBool,
+
   typeEnum,
+    firstSimpleType = typeEnum,
   typeUnion,
   typeStruct,
   typeFunc,
   typeObject,
   typeInterface,
   typeMethod,
+    lastSimpleType = typeMethod,
 
   statementToken = (1024 * 3),
-  stmtBind,
+  stmtBind = statementToken,
   stmtElse,
   stmtElseIf,
   stmtEndFor,
@@ -185,18 +193,26 @@ void Unexpected( unsigned onLine, unsigned onColumn,
  *  Symbol table declarations
  */
 
+#include "keyarray.h"
+
 typedef struct TypeSpec {
   int pointerType;
-  char* name;
-  unsigned baseType;
+  unsigned simpleType;
+  char simpleTypeName[IDENTPAIR_MAXLEN];
   unsigned dimCount;
 } TypeSpec;
 
-typedef struct SymTable {
-  unsigned tokenCode;
-} SymTable;
+typedef struct Symbol {
+  int tokenCode;
+} Symbol;
 
-extern SymTable symtab;
+DECLARE_STRING_KEYARRAY_TYPES( SymTable, Symbol )
+
+extern SymTable* symTable;
+extern SymTable* localTable;
+
+void FreeSymbol( Symbol* data );
+int CopySymbol( Symbol* dest, Symbol* source );
 
 /*
  *  Lexer declarations
@@ -224,9 +240,16 @@ typedef struct KeywordItem {
 } KeywordItem;
 
 extern const KeywordItem baseTypeName[];
+extern const size_t baseTypeCount;
+
 extern const KeywordItem topLevelKeyword[];
+extern const size_t topLevelCount;
+
 extern const KeywordItem statementKeyword[];
+extern const size_t statementCount;
+
 extern const KeywordItem reservedWord[];
+extern const size_t reservedCount;
 
 extern RetFile retFile;
 
@@ -244,6 +267,7 @@ int ReadBinaryDigit( RetFile* fromSource );
 int ReadOctalDigit( RetFile* fromSource );
 int ReadHexDigit( RetFile* fromSource );
 int ReadDecimalDigit( RetFile* fromSource );
+int ReadNumber( RetFile* fromSource, unsigned* toUint );
 
 int ReadString( RetFile* fromSource, char** toString );
 

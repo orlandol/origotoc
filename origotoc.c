@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.4 Alpha
+ * OrigoToC 0.1.5 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -414,7 +414,33 @@ void Unexpected( unsigned onLine, unsigned onColumn, const char* message ) {
  *  Symbol table declarations
  */
 
-SymTable symTable = {};
+#include "keyarray.h"
+
+SymTable* symTable = NULL;
+SymTable* localTable = NULL;
+
+void FreeSymbol( Symbol* data ) {
+}
+
+int CopySymbol( Symbol* dest, Symbol* source ) {
+  return 0;
+}
+
+DECLARE_STRING_KEYARRAY_CREATE( CreateSymTable, SymTable )
+DECLARE_STRING_KEYARRAY_FREE( FreeSymTable, SymTable, FreeSymbol )
+
+DECLARE_STRING_KEYARRAY_INSERT( InsertSymbol, SymTable, Symbol )
+DECLARE_STRING_KEYARRAY_REMOVE( RemoveSymbol, SymTable, FreeSymbol )
+
+DECLARE_STRING_KEYARRAY_RETRIEVE( LookupSymbol, SymTable, Symbol )
+DECLARE_STRING_KEYARRAY_MODIFY( ModifySymbol, SymTable, Symbol )
+
+DECLARE_STRING_KEYARRAY_FINDINDEX( SymbolIndex, SymTable )
+
+DECLARE_STRING_KEYARRAY_RELEASEUNUSED( ReleaseUnusedSymbols, SymTable )
+
+DECLARE_STRING_KEYARRAY_COPY( CopySymTable, SymTable, Symbol,
+  CopySymbol, FreeSymbol )
 
 /*
  *  Lexer declarations
@@ -626,7 +652,7 @@ unsigned FindTopLevelKeyword( const char* identName ) {
   size_t keywordIndex = topLevelCount / 2;
   int    compareCode = 0;
 
-  if( (identName == NULL) || (*identName == '\0') ) { return 1; }
+  if( (identName == NULL) || (*identName == '\0') ) { return 0; }
 
   while( leftIndex < rightIndex ) {
     compareCode = strcmp(topLevelKeyword[keywordIndex].name, identName);
@@ -643,7 +669,7 @@ unsigned FindTopLevelKeyword( const char* identName ) {
     keywordIndex = (leftIndex + rightIndex) / 2;
   }
 
-  return 5;
+  return 0;
 }
 
 int ReadTopLevelKeyword( RetFile* fromSource, unsigned* toTokenCode ) {
@@ -905,11 +931,78 @@ int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) 
   if( result ) { Expected( line, column, "Identifier" ); }
 }
 
+unsigned FindBaseType( const char* identName ) {
+  size_t leftIndex = 0;
+  size_t rightIndex = baseTypeCount;
+  size_t baseTypeIndex = baseTypeCount / 2;
+  int    compareCode = 0;
+
+  if( (identName == NULL) || (*identName == '\0') ) { return 0; }
+
+  while( leftIndex < rightIndex ) {
+    compareCode = strcmp(baseTypeName[baseTypeIndex].name, identName);
+    if( compareCode == 0 ) {
+      return baseTypeName[baseTypeIndex].tokenCode;
+    }
+
+    if( compareCode > 0 ) {
+      rightIndex = baseTypeIndex;
+    } else {
+      leftIndex = baseTypeIndex + 1;
+    }
+
+    baseTypeIndex = (leftIndex + rightIndex) / 2;
+  }
+
+  return 0;
+}
+
+// [@][SIMPLETYPE] ['[' CONSTEXPR [','...] ']']
+// @[SIMPLETYPE] ['[' [CONSTEXPR [','...]] ']']
 void ParseTypeSpec( RetFile* fromSource, SymTable* usingSymTable,
   TypeSpec* toTypeSpec ) {
 
+  TypeSpec typeSpec = {};
+  int result = 0;
+  unsigned curLine;
+  unsigned curColumn;
+  unsigned uintNum = 0;
+
   if( fromSource == NULL ) { Error( 1, "ParseTypeSpec" ); }
   if( toTypeSpec == NULL ) { Error( 2, "ParseTypeSpec" ); }
+
+  // Parse pointer and allow array to not have a dimension
+  if( fromSource->curCh == '@' ) {
+    ReadChar( fromSource ); // Skip @
+    typeSpec.pointerType = ptrData;
+  }
+
+  // Read simple type [name], if present. Undeclared ident is an error
+  // if followed by array dimension. Otherwise, rewind ident. Defer
+  // error until array is parsed, if present.
+  SkipNonterminals( fromSource );
+  curLine = fromSource->line;
+  curColumn = fromSource->column;
+  result = ReadIdent(fromSource, typeSpec.simpleTypeName);
+
+  typeSpec.simpleType = FindBaseType(typeSpec.simpleTypeName);
+  if( typeSpec.simpleType == 0 ) {
+  }
+
+  // Read array dimension
+  if( fromSource->curCh == '[' ) {
+    ReadChar( fromSource ); // Skip [
+
+    // Parse array dimension. Require unless type spec is a pointer.
+    SkipNonterminals( fromSource );
+    curLine = fromSource->line;
+    curColumn = fromSource->column;
+    result = ReadNumber(fromSource, &uintNum);
+
+    // Parse closing brace
+  }
+
+  *toTypeSpec = typeSpec;
 }
 
 int ParseEnum( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
@@ -1051,7 +1144,6 @@ int ParseMethod( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
 void ParseRun( RetFile* fromSource, CFile* toCgen,
   SymTable* usingSymTable ) {
 
-  SymTable localTable = {};
   char ident[IDENT_MAXLEN] = {};
   unsigned curLine = 0;
   unsigned curColumn = 0;
@@ -1061,8 +1153,14 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
   if( toCgen == NULL ) { Error( 2, "ParseRun" ); }
   if( usingSymTable == NULL ) { Error( 3, "ParseRun" ); }
 
+  // Create local symbol table
+  if( localTable ) { Error( 4, "ParseRun" ); }
+  localTable = CreateSymTable(0);
+  if( localTable == NULL ) { Error( 5, "ParseRun" ); }
+
   if( fromSource->runDeclared ) {
-    DuplicateIdentifier(fromSource->markedLine, fromSource->markedColumn, "run already declared.");
+    DuplicateIdentifier(fromSource->markedLine,
+      fromSource->markedColumn, "run already declared.");
   }
   fromSource->runDeclared = -1;
 
@@ -1075,7 +1173,7 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
 
   // Parse local var declarations
   while( strcmp(ident, "var") == 0 ) {
-    ParseLocalVar(fromSource, toCgen, usingSymTable, &localTable);
+    ParseLocalVar(fromSource, toCgen, usingSymTable, localTable);
 
     // Skip end
     SkipNonterminals( fromSource );
@@ -1095,6 +1193,8 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
     result = ReadIdent(fromSource, ident);
     if( result ) { Expected(curLine, curColumn, "var block or statement"); }
   } while( fromSource->curCh != EOF );
+
+  FreeSymTable( &localTable );
 }
 
 void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
@@ -1190,7 +1290,6 @@ void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
     }
 
     if( declResult ) {
-      printf( "Parse[declResult:%u]\n", declResult );
       Error( result, "Parse > switch" );
     }
   }
@@ -1203,6 +1302,10 @@ void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
 void Cleanup() {
   // Release memory used by source file
   CloseRet( &retFile );
+
+  // Release memory used by symbol table
+  FreeSymTable( &symTable );
+  FreeSymTable( &localTable );
 
   // Release memory used by options
   FreePtr( &options.sourceFileName );
@@ -1227,7 +1330,8 @@ int main( int paramArgc, char* paramArgv[] ) {
   result = OpenRet(options.sourceFileName, &retFile);
   if( result != 0 ) { Error(result, "main > OpenRet" ); }
 
-  Parse( &retFile, &cGen, &symTable );
+  symTable = CreateSymTable(0);
+  Parse( &retFile, &cGen, symTable );
 
   return 0;
 }

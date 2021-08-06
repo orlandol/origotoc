@@ -10,5 +10,7 @@
 program test
 
 run
-  var end
+  var
+    @int[1024] v1
+  end
 end
