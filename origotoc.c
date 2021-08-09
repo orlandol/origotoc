@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.5 Alpha
+ * OrigoToC 0.1.6 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -388,25 +388,10 @@ void Error( unsigned ofCode, const char* withMessage ) {
   exit(1);
 }
 
-void ImplementationPending( unsigned onLine, unsigned onColumn,
-  const char* message ) {
+void SyntaxError( unsigned onLine, unsigned onColumn,
+  const char* prefix, const char* message ) {
 
-  printf( "Implementation Pending[L%u,C%u]: %s\n", onLine, onColumn, message );
-  exit(1);
-}
-
-void DuplicateIdentifier( unsigned onLine, unsigned onColumn, const char* message ) {
-  printf( "Duplicate Identifier[L%u,C%u]: %s\n", onLine, onColumn, message );
-  exit(1);
-}
-
-void Expected( unsigned onLine, unsigned onColumn, const char* message ) {
-  printf( "Expected[L%u,C%u]: %s\n", onLine, onColumn, message );
-  exit(1);
-}
-
-void Unexpected( unsigned onLine, unsigned onColumn, const char* message ) {
-  printf( "Unexpected[L%u,C%u]: %s\n", onLine, onColumn, message );
+  printf( "%s[L%u,C%u]: %s\n", prefix, onLine, onColumn, message );
   exit(1);
 }
 
@@ -638,7 +623,6 @@ int ReadIdent( RetFile* fromSource, char* toIdent ) {
     identLen++;
   } while( ReadIdentChar(fromSource) != EOF );
 
-
   if( identLen == 0 ) { return 4; }
 
   strcpy( toIdent, tmpIdent );
@@ -696,7 +680,7 @@ int ReadBinaryDigit( RetFile* fromSource ) {
   binDigit = ReadChar(fromSource);
 
   // Skip separators
-  while( (binDigit != EOF) && (binDigit == '_') ) {
+  while( binDigit == '_' ) {
     binDigit = ReadChar(fromSource);
   }
 
@@ -706,13 +690,35 @@ int ReadBinaryDigit( RetFile* fromSource ) {
   return EOF;
 }
 
+int ReadBinaryNumber( RetFile* fromSource, unsigned* toUint ) {
+  unsigned checkNumber;
+  unsigned binaryNumber = 0;
+
+  if( fromSource == NULL ) { return 1; }
+  if( toUint == NULL ) { return 2; }
+
+  while( ReadBinaryDigit(fromSource) != EOF ) {
+    checkNumber = binaryNumber;
+    binaryNumber = (binaryNumber << 1) + (fromSource->curCh - '0');
+
+    if( checkNumber > binaryNumber ) { SyntaxError(
+      fromSource->tokenLine, fromSource->tokenColumn,
+      "Overflow", "Too many digits in number" );
+    }
+  }
+
+  *toUint = binaryNumber;
+
+  return 0;
+}
+
 int ReadOctalDigit( RetFile* fromSource ) {
   int octalDigit;
 
   octalDigit = ReadChar(fromSource);
 
   // Skip separators
-  while( (octalDigit != EOF) && (octalDigit == '_') ) {
+  while( octalDigit == '_' ) {
     octalDigit = ReadChar(fromSource);
   }
 
@@ -722,13 +728,35 @@ int ReadOctalDigit( RetFile* fromSource ) {
   return EOF;
 }
 
+int ReadOctalNumber( RetFile* fromSource, unsigned* toUint ) {
+  unsigned checkNumber;
+  unsigned octalNumber = 0;
+
+  if( fromSource == NULL ) { return 1; }
+  if( toUint == NULL ) { return 2; }
+
+  while( ReadOctalDigit(fromSource) != EOF ) {
+    checkNumber = octalNumber;
+    octalNumber = (octalNumber << 3) + (fromSource->curCh - '0');
+
+    if( checkNumber > octalNumber ) { SyntaxError(
+      fromSource->tokenLine, fromSource->tokenColumn,
+      "Overflow", "Too many digits in number" );
+    }
+  }
+
+  *toUint = octalNumber;
+
+  return 0;
+}
+
 int ReadHexDigit( RetFile* fromSource ) {
   int hexDigit;
 
   hexDigit = ReadChar(fromSource);
 
   // Skip separators
-  while( (hexDigit != EOF) && (hexDigit == '_') ) {
+  while( hexDigit == '_' ) {
     hexDigit = ReadChar(fromSource);
   }
 
@@ -738,29 +766,107 @@ int ReadHexDigit( RetFile* fromSource ) {
   return EOF;
 }
 
+int ReadHexNumber( RetFile* fromSource, unsigned* toUint ) {
+  unsigned checkNumber;
+  unsigned hexNumber = 0;
+
+  if( fromSource == NULL ) { return 1; }
+  if( toUint == NULL ) { return 2; }
+
+  while( ReadHexDigit(fromSource) != EOF ) {
+    checkNumber = hexNumber;
+
+    if( (fromSource->curCh >= 'a') && (fromSource->curCh <= 'f') ) {
+      hexNumber = (hexNumber << 3) + (fromSource->curCh - 'a') + 10;
+    } else {
+      hexNumber = (hexNumber << 3) + (fromSource->curCh - '0');
+    }
+
+    if( checkNumber > hexNumber ) { SyntaxError(
+      fromSource->tokenLine, fromSource->tokenColumn,
+      "Overflow", "Too many digits in number" );
+    }
+  }
+
+  *toUint = hexNumber;
+
+  return 0;
+}
+
 int ReadDecimalDigit( RetFile* fromSource ) {
   int digit;
 
   digit = ReadChar(fromSource);
 
   // Skip separators
-  while( (digit != EOF) && (digit == '_') ) {
+  while( digit == '_' ) {
     digit = ReadChar(fromSource);
   }
 
   // Only read 09
-  if( (digit >= '0') && (digit == '9') ) { return digit; }
+  if( (digit >= '0') && (digit <= '9') ) { return digit; }
 
   return EOF;
 }
 
+int ReadDecimalNumber( RetFile* fromSource, unsigned* toUint ) {
+  unsigned checkNumber;
+  unsigned decimalNumber = 0;
+
+  if( fromSource == NULL ) { return 1; }
+  if( toUint == NULL ) { return 2; }
+
+  if( isdigit(fromSource->curCh) == 0 ) { return 3; }
+
+  do {
+    checkNumber = decimalNumber;
+    decimalNumber = (decimalNumber * 10) + (fromSource->curCh - '0');
+
+    if( checkNumber > decimalNumber ) { SyntaxError(
+      fromSource->tokenLine, fromSource->tokenColumn,
+      "Overflow", "Too many digits in number" );
+    }
+  } while( ReadDecimalDigit(fromSource) != EOF );
+
+  *toUint = decimalNumber;
+
+  return 0;
+}
+
 int ReadNumber( RetFile* fromSource, unsigned* toUint ) {
+  unsigned number = 0;
+  int result = 0;
+
   if( fromSource == NULL ) { return 1; }
   if( toUint == NULL ) { return 2; }
 
   MarkToken( fromSource );
 
-  return 3;
+  // Parse binary, octal, or hex
+  if( fromSource->curCh == '0' ) {
+    ReadChar( fromSource ); // Skip 0
+
+    switch( fromSource->curCh ) {
+    case 'b': result = ReadBinaryNumber( fromSource, &number ); break;
+    case 'o': result = ReadOctalNumber( fromSource, &number ); break;
+    case 'x': result = ReadHexNumber( fromSource, &number ); break;
+
+    default:
+      if( isdigit(fromSource->curCh) == 0 ) {
+        SyntaxError( fromSource->tokenLine, fromSource->tokenColumn,
+          "Expected", "0b, 0o, or 0x" );
+      }
+      result = ReadDecimalNumber( fromSource, &number );
+    }
+  } else {
+    result = ReadDecimalNumber( fromSource, &number );
+  }
+
+  if( result ) { Error( result, "ReadNumber" ); }
+
+  *toUint = number;
+
+  return 0;
 }
 
 int ReadString( RetFile* fromSource, char** toString ) {
@@ -783,6 +889,8 @@ int OpenRet( const char* fileName, RetFile* toSourceVar ) {
 
   toSourceVar->line = 1;
   toSourceVar->column = 1;
+  toSourceVar->tokenLine = 1;
+  toSourceVar->tokenColumn = 1;
 
   ReadChar( toSourceVar );
   ReadChar( toSourceVar );
@@ -798,8 +906,8 @@ void CloseRet( RetFile* sourceVar ) {
     memset( sourceVar, 0, sizeof(RetFile) );
     sourceVar->line = 1;
     sourceVar->column = 1;
-
-    SkipNonterminals( sourceVar );
+    sourceVar->tokenLine = 1;
+    sourceVar->tokenColumn = 1;
   }
 }
 
@@ -882,6 +990,9 @@ void SkipNonterminals( RetFile* fromSource ) {
       break;
     }
   }
+
+  fromSource->tokenLine = fromSource->line;
+  fromSource->tokenColumn = fromSource->column;
 }
 
 int Match( RetFile* fromSource, const char* withText ) {
@@ -910,8 +1021,6 @@ int Match( RetFile* fromSource, const char* withText ) {
 // program IDENT
 int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
   char programName[IDENT_MAXLEN] = {};
-  unsigned line;
-  unsigned column;
   int result = 0;
 
   if( fromSource == NULL ) { return 1; }
@@ -919,16 +1028,14 @@ int ParseProgram( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) 
   if( usingSymTable == NULL ) { return 3; }
 
   SkipNonterminals( fromSource );
-  line = fromSource->line;
-  column = fromSource->column;
   result = Match(fromSource, "program");
-  if( result ) { Expected( line, column, "program" ); }
+  if( result ) { SyntaxError( fromSource->tokenLine,
+    fromSource->tokenColumn, "Expected", "program" ); }
 
   SkipNonterminals( fromSource );
-  line = fromSource->line;
-  column = fromSource->column;
   result = ReadIdent(fromSource, programName);
-  if( result ) { Expected( line, column, "Identifier" ); }
+  if( result ) { SyntaxError( fromSource->tokenLine,
+    fromSource->tokenColumn, "Expected", "Identifier" ); }
 }
 
 unsigned FindBaseType( const char* identName ) {
@@ -964,8 +1071,6 @@ void ParseTypeSpec( RetFile* fromSource, SymTable* usingSymTable,
 
   TypeSpec typeSpec = {};
   int result = 0;
-  unsigned curLine;
-  unsigned curColumn;
   unsigned uintNum = 0;
 
   if( fromSource == NULL ) { Error( 1, "ParseTypeSpec" ); }
@@ -981,8 +1086,6 @@ void ParseTypeSpec( RetFile* fromSource, SymTable* usingSymTable,
   // if followed by array dimension. Otherwise, rewind ident. Defer
   // error until array is parsed, if present.
   SkipNonterminals( fromSource );
-  curLine = fromSource->line;
-  curColumn = fromSource->column;
   result = ReadIdent(fromSource, typeSpec.simpleTypeName);
 
   typeSpec.simpleType = FindBaseType(typeSpec.simpleTypeName);
@@ -995,11 +1098,21 @@ void ParseTypeSpec( RetFile* fromSource, SymTable* usingSymTable,
 
     // Parse array dimension. Require unless type spec is a pointer.
     SkipNonterminals( fromSource );
-    curLine = fromSource->line;
-    curColumn = fromSource->column;
+
     result = ReadNumber(fromSource, &uintNum);
+    if( result && (typeSpec.pointerType == 0) ) {
+      SyntaxError( fromSource->tokenLine, fromSource->tokenColumn,
+        "Expected", "Constant expression" );
+    }
+    typeSpec.dimCount = uintNum;
 
     // Parse closing brace
+    SkipNonterminals( fromSource );
+    if( fromSource->curCh != ']' ) {
+      SyntaxError( fromSource->tokenLine, fromSource->tokenColumn,
+        "Expected", "]" );
+    }
+    ReadChar( fromSource );
   }
 
   *toTypeSpec = typeSpec;
@@ -1068,9 +1181,8 @@ void ParseLocalVar( RetFile* fromSource, CFile* toCgen,
   SymTable* usingSymTable, SymTable* usingLocalTable ) {
 
   char ident[IDENT_MAXLEN] = {};
-  unsigned curLine;
-  unsigned curColumn;
   int result = 0;
+  TypeSpec varType;
 
   if( fromSource == NULL ) { Error( 1, "ParseLocalVar" ); }
   if( toCgen == NULL ) { Error( 2, "ParseLocalVar" ); }
@@ -1079,14 +1191,28 @@ void ParseLocalVar( RetFile* fromSource, CFile* toCgen,
 
   do {
     SkipNonterminals( fromSource );
-    curLine = fromSource->line;
-    curColumn = fromSource->column;
     result = ReadIdent(fromSource, ident);
 
     if( strcmp(ident, "end") == 0 ) { return; }
 
-    ///TODO: Parse local variable declaration.
-    ImplementationPending( curLine, curColumn, "Local variable declaration" );
+    SkipNonterminals( fromSource );
+    memset( &varType, 0, sizeof(varType) );
+    ParseTypeSpec( fromSource, usingSymTable, &varType );
+
+    do {
+putchar( '.' );
+      SkipNonterminals( fromSource );
+      memset( ident, 0, sizeof(ident) );
+      result = ReadIdent(fromSource, ident);
+      if( result ) { 
+        if( fromSource->curCh == ',' ) {
+          ReadChar( fromSource );
+          continue;
+        }
+        SyntaxError( fromSource->tokenLine, fromSource->tokenColumn,
+        "Expected", "local variable declaration" );
+      }
+    } while( fromSource->curCh != EOF );
   } while( fromSource->curCh != EOF );
 }
 
@@ -1145,8 +1271,6 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
   SymTable* usingSymTable ) {
 
   char ident[IDENT_MAXLEN] = {};
-  unsigned curLine = 0;
-  unsigned curColumn = 0;
   int result = 0;
 
   if( fromSource == NULL ) { Error( 1, "ParseRun" ); }
@@ -1159,17 +1283,16 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
   if( localTable == NULL ) { Error( 5, "ParseRun" ); }
 
   if( fromSource->runDeclared ) {
-    DuplicateIdentifier(fromSource->markedLine,
-      fromSource->markedColumn, "run already declared.");
+    SyntaxError(fromSource->tokenLine, fromSource->tokenColumn,
+      "Duplicate", "run already declared.");
   }
   fromSource->runDeclared = -1;
 
   // Skip run
   SkipNonterminals( fromSource );
-  curLine = fromSource->line;
-  curColumn = fromSource->column;
   result = ReadIdent(fromSource, ident);
-  if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+  if( result ) { SyntaxError(fromSource->tokenLine, fromSource->tokenColumn,
+    "Expected", "var block or statement"); }
 
   // Parse local var declarations
   while( strcmp(ident, "var") == 0 ) {
@@ -1177,10 +1300,9 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
 
     // Skip end
     SkipNonterminals( fromSource );
-    curLine = fromSource->line;
-    curColumn = fromSource->column;
     result = ReadIdent(fromSource, ident);
-    if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+    if( result ) { SyntaxError(fromSource->tokenLine,
+      fromSource->tokenColumn, "Expected", "var block or statement"); }
   }
 
   // Parse statements
@@ -1188,10 +1310,9 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
     if( strcmp(ident, "end") == 0 ) { break; }
 
     SkipNonterminals( fromSource );
-    curLine = fromSource->line;
-    curColumn = fromSource->column;
     result = ReadIdent(fromSource, ident);
-    if( result ) { Expected(curLine, curColumn, "var block or statement"); }
+    if( result ) { SyntaxError(fromSource->tokenLine,
+      fromSource->tokenColumn, "Expected", "var block or statement"); }
   } while( fromSource->curCh != EOF );
 
   FreeSymTable( &localTable );
@@ -1200,8 +1321,6 @@ void ParseRun( RetFile* fromSource, CFile* toCgen,
 void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
   char keyword[IDENT_MAXLEN] = {};
   unsigned keywordToken = 0;
-  unsigned curLine = 0;
-  unsigned curColumn = 0;
   int declResult = 0;
   int result = 0;
 
@@ -1209,8 +1328,6 @@ void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
 
   while( fromSource->curCh != EOF ) {
     SkipNonterminals( fromSource );
-    curLine = fromSource->line;
-    curColumn = fromSource->column;
     keywordToken = 0;
     result = ReadTopLevelKeyword(fromSource, &keywordToken);
     if( result ) {
@@ -1286,7 +1403,8 @@ void Parse( RetFile* fromSource, CFile* toCgen, SymTable* usingSymTable ) {
       break;
 
     default:
-      Expected( curLine, curColumn, "top level declaration" );
+      SyntaxError( fromSource->tokenLine, fromSource->tokenColumn,
+        "Expected", "top level declaration" );
     }
 
     if( declResult ) {

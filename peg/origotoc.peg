@@ -1,0 +1,237 @@
+
+%header {
+  // begin general declarations
+  #define IDENT_MAXLEN 32
+  #define IDENT_MAXINDEX (IDENT_MAXLEN - 1)
+  // end general declarations
+
+  #include "keyarray.h"
+
+  // begin enum field declarations
+  typedef struct EnumField {
+    char name[IDENT_MAXLEN];
+    unsigned value;
+  } EnumField;
+
+  DECLARE_STRING_KEYARRAY_TYPES( EnumFieldTable, EnumField )
+
+  void FreeEnumField( EnumField* data );
+  int CopyEnumField( EnumField* dest, EnumField* source );
+  // end enum field declarations
+
+  // begin parse state declarations
+  typedef struct EnumBlockState {
+    char qualifier[IDENT_MAXLEN];
+    EnumFieldTable* enumTable;
+  } EnumBlockState;
+
+  typedef struct BlockState {
+    union {
+      EnumBlockState enumState;
+    };
+  } BlockState;
+  // end parse state declarations
+}
+
+%source {
+  // begin strnlen copied from packcc.c source file, as a workaround for TinyCC
+  static size_t strnlen(const char *str, size_t maxlen) {
+    size_t i;
+    for( i = 0; (i < maxlen) && str[i]; i++ ) {
+    };
+    return i;
+  }
+  // end
+
+/*
+  static const char *dbg_str[] = { "Evaluating rule", "Matched rule", "Abandoning rule" };
+  #define PCC_DEBUG(event, rule, level, pos, buffer, length) \
+      fprintf(stderr, "%*s%s %s @%d [%.*s]\n", level * 2, "", dbg_str[event], rule, pos, length, buffer);
+*/
+
+  #include "keyarray.h"
+
+  // begin enum field table
+  EnumFieldTable* enumFieldTable = NULL;
+
+  void FreeEnumField( EnumField* data ) {
+  }
+
+  int CopyEnumField( EnumField* dest, EnumField* source ) {
+    return 0;
+  }
+
+  DECLARE_STRING_KEYARRAY_CREATE( CreateEnumFieldTable, EnumFieldTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeEnumFieldTable, EnumFieldTable, FreeEnumField )
+
+  DECLARE_STRING_KEYARRAY_INSERT( InsertEnumField, EnumFieldTable, EnumField )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveEnumField, EnumFieldTable, FreeEnumField )
+
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupEnumField, EnumFieldTable, EnumField )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyEnumField, EnumFieldTable, EnumField )
+
+  DECLARE_STRING_KEYARRAY_FINDINDEX( EnumFieldIndex, EnumFieldTable )
+
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( ReleaseUnusedEnumFields, EnumFieldTable )
+
+  DECLARE_STRING_KEYARRAY_COPY( CopyEnumFieldTable, EnumFieldTable, EnumField,
+    CopyEnumField, FreeEnumField )
+  // end
+
+  // begin temporary declarations
+  char enumQualifier[IDENT_MAXLEN] = {};
+  // end temporary declarations
+}
+
+program <-
+  _ program_header _ (_ declaration)* run_block? _ (_ declaration)* _ EOF {
+  }
+
+## Begin program IDENT
+program_header <-
+  'program' _ <IDENT> {
+    printf( "PROGRAM[%s]\n", $1 );
+  }
+# End program IDENT
+
+## Begin top level declaration
+declaration <-
+  _ enum_declaration _
+/ _ struct_declaration _
+# End top level declaration
+
+## Begin enum ... end
+enum_declaration <-
+  enum_header (_ enum_field_declaration)* _ 'end' {
+  }
+
+enum_header <-
+  'enum' _ <IDENT> {
+    strncpy( enumQualifier, $1, IDENT_MAXINDEX );
+    printf( "ENUM[%s]\n", enumQualifier );
+  }
+
+enum_field_declaration <-
+  &'end'
+/ <IDENT> _ '=' _ <CONSTEXPR> _ ',' {
+    printf( "ENUMFIELD[%s.%s = %s],", enumQualifier, $1, $2 );
+  }
+/ <IDENT> _ '=' _ <CONSTEXPR> {
+    printf( "ENUMFIELD[%s.%s = %s]\n", enumQualifier, $3, $4 );
+  }
+/ <IDENT> _ ',' {
+    printf( "ENUMFIELD[%s.%s],", enumQualifier, $5 );
+  }
+/ <IDENT> {
+    printf( "ENUMFIELD[%s.%s]\n", enumQualifier, $6 );
+  }
+# End enum ... end
+
+## Begin struct ... end
+struct_declaration <-
+  struct_header (_ struct_field_declaration)* _ 'end' {
+  }
+
+struct_header <-
+  'struct' _ <IDENT> _ {
+  }
+
+struct_field_declaration <-
+  &'end'
+/ ',' _ <IDENT> _ '=' _ <CONSTEXPR> _ {
+  }
+/ ',' _ <IDENT> _ {
+  }
+/ <IDENT> _ '=' _ <CONSTEXPR> _ {
+  }
+/ <IDENT> _ {
+  }
+# End struct ... end
+
+## Begin run ... end
+run_block <-
+  run_begin (_ statement)* _ 'end' {
+    printf( "RUN\n" );
+  }
+
+run_begin <-
+  'run' {
+  }
+# End run ... end
+
+## Begin statement
+statement <-
+  &'end'
+/ <IDENT> _ ':' {
+    printf( "LABEL[%s]\n", $1 );
+  }
+/ 'gpto' _ <IDENT> {
+    printf( "GOTO[%s]\n", $2 );
+  }
+# End statement
+
+## Begin type spec
+#TYPESPEC <-
+#  SIMPLETYPE
+#
+#SIMPLETYPE <-
+#  BASETYPE
+#
+#BASETYPE <-
+#  'int8' / 'int16' / 'int32' / 'int64' / 'int'
+#/ 'uint8' / 'uint16' / 'uint32' / 'uint64' / 'uint'
+#/ 'char' / 'bool' / 'size' / 'fsize'
+# End type spec
+
+## Begin constant expression
+# Expression must evaluate to an immediate value
+CONSTEXPR <-
+  INTNUM
+/ CONSTIDENT
+
+CONSTIDENT <-
+  <IDENT> {
+  }
+# End constant expression
+
+## Begin expression tokens
+INTNUM <-
+  '0b'[0-1]+
+/ '0o'[0-7]+
+/ '0x'[0-9a-fA-F]+
+/ [0-9]+
+# End expression tokens
+
+## Begin tokens
+IDENT <- [_a-zA-Z][_a-zA-Z0-9]*
+
+_ <- (NONTERMINAL / MLCOMMENT / SLCOMMENT)*
+
+NONTERMINAL <- [ \t\r\n]
+
+MLCOMMENT <- '/*' (!'*/' .)* '*/'
+SLCOMMENT <- '//' (!EOL .)* EOL
+
+EOL <- '\r\n' / '\r' / '\n'
+
+EOF <- !.
+# End tokens
+
+%%
+
+void Cleanup() {
+  FreeEnumFieldTable( &enumFieldTable );
+}
+
+int main( int argc, char* argv[] ) {
+  atexit( Cleanup );
+
+  pcc_context_t *ctx = pcc_create(NULL);
+
+  while( pcc_parse(ctx, NULL) ) {
+  };
+
+  pcc_destroy( ctx );
+
+  return 0;
+}

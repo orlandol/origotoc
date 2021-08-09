@@ -1,0 +1,542 @@
+# 
+# MIT License
+# 
+# Copyright (c) 2014-2021 Orlando Llanes
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# 
+
+%source {
+#include <ctype.h>
+
+  char rootIdent[256] = {}; ///TODO: Use auxiliary instead
+
+  // begin strnlen copied from packcc.c source file, as a workaround for TinyCC
+  static size_t strnlen(const char *str, size_t maxlen) {
+    size_t i;
+    for( i = 0; (i < maxlen) && str[i]; i++ ) {
+    };
+    return i;
+  }
+  // end
+
+/*
+  static const char *dbg_str[] = { "Evaluating rule", "Matched rule", "Abandoning rule" };
+  #define PCC_DEBUG(event, rule, level, pos, buffer, length) \
+      fprintf(stderr, "%*s%s %s @%d [%.*s]\n", level * 2, "", dbg_str[event], rule, pos, length, buffer);
+*/
+
+  int TranslateTypeSpec( const char* typeSpec, char* ident ) {
+    size_t tspecPos = 0;
+    char ptrCh = '\0';
+    char simpleType[256] = {};
+    size_t simpleTypeLen = 0;
+    size_t arrayDim = (size_t)-1;
+    int hasArray = 0;
+
+    if( !(typeSpec && ident) ) {
+      return 0;
+    }
+
+    // Process pointer type
+    while( isspace(typeSpec[tspecPos]) ) {
+      tspecPos++;
+    }
+    if( typeSpec[tspecPos] == '\0' ) {
+      ///TODO: Generate void ident here?
+      return 0;
+    }
+    if( typeSpec[tspecPos] == '@' ) {
+      ptrCh = '*';
+      tspecPos++;
+    }
+
+    // Process simple type
+    while( isspace(typeSpec[tspecPos]) ) {
+      tspecPos++;
+    }
+    if( typeSpec[tspecPos] ) {
+      while( isalnum(typeSpec[tspecPos]) ) {
+        if( simpleTypeLen < sizeof(simpleTypeLen-1) ) {
+          simpleType[simpleTypeLen] = typeSpec[tspecPos];
+          simpleTypeLen++;
+        }
+        tspecPos++;
+      }
+      simpleType[simpleTypeLen] = '\0';
+
+      // Process array dimension
+      while( isspace(typeSpec[tspecPos]) ) {
+        tspecPos++;
+      }
+      if( typeSpec[tspecPos] == '[' ) {
+        hasArray = 1;
+        tspecPos++;
+        while( isspace(typeSpec[tspecPos]) ) {
+          tspecPos++;
+        }
+        if( isdigit(typeSpec[tspecPos]) ) {
+          arrayDim = 0;
+        }
+        while( isdigit(typeSpec[tspecPos]) ) {
+          arrayDim = (arrayDim * 10) + (typeSpec[tspecPos] - '0');
+          tspecPos++;
+        }
+        while( isspace(typeSpec[tspecPos]) ) {
+          tspecPos++;
+        }
+        if( typeSpec[tspecPos] != ']' ) {
+          return 0;
+        }
+        tspecPos++;
+      }
+    }
+
+	// Output C declaration
+    if( ptrCh ) {
+      if( hasArray && (arrayDim == -1) ) {
+        printf( "%s%c%c ", simpleTypeLen ? simpleType : "void", ptrCh, '*' );
+      } else {
+        printf( "%s%c ", simpleTypeLen ? simpleType : "void", ptrCh );
+      }
+    } else {
+      printf( "%s ", simpleTypeLen ? simpleType : "void" );
+    }
+
+    if( hasArray && arrayDim ) {
+      if( arrayDim == -1 ) {
+        printf( "%s", ident );
+      } else {
+        printf( "%s[%i]", ident, arrayDim );
+      }
+    } else {
+      printf( "%s", ident );
+    }
+
+    return -1;
+  }
+}
+
+## Begin program header
+program_header <-
+  _ program_begin _ declaration* _ run_block _ declaration* _ EOF {
+  }
+
+program_begin <-
+  'program' _ <IDENT> {
+    printf(
+      "#include <stdbool.h>\n"
+      "#include <stdint.h>\n"
+      "#include <stdlib.h>\n"
+      "\n"
+      "  typedef unsigned uint;\n"
+      "  typedef int8_t int8;\n"
+      "  typedef int16_t int16;\n"
+      "  typedef int32_t int32;\n"
+      "  typedef int32_t int32;\n"
+      "\n"
+      "  typedef uint8_t uint8;\n"
+      "  typedef uint16_t uint16;\n"
+      "  typedef uint32_t uint32;\n"
+      "  typedef uint32_t uint32;\n"
+      "\n"
+      "  typedef uint64_t fsize;\n"
+      "\n"
+      "  typedef unsigned size;\n"
+      "\n"
+      "  int argc;\n"
+      "  char** argv = NULL;\n"
+      "\n"
+    );
+  }
+# End program header
+
+## Begin top level grammar
+declaration <-
+  declare_enum
+/ declare_union
+/ declare_struct
+/ _ declare_type _
+/ _ declare_const _
+#/ declare_global_var
+#/ declare_func_prototype
+#/ declare_func_import
+#/ declare_object
+#/ declare_object_new
+#/ declare_object_free
+#/ declare_interface
+#/ declare_method
+# End top level grammar
+
+## Begin local variable declaration grammar
+declare_local_var <-
+  'var' (_ declare_local)* _ 'end'
+
+declare_local <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ {
+    printf( "  " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( ";\n" );
+  }
+
+# End local variable declaration grammar
+
+## Begin enum declaration grammar
+declare_enum <-
+  declare_enum_begin _ declare_enum_field* _ 'end' {
+    ///TODO: Generate structure and constant from queue
+    printf(
+      "  };\n"
+      "\n"
+    );
+  }
+
+declare_enum_begin <-
+  'enum' _ <IDENT> {
+    $$ = 0;
+    printf( "  enum %s {\n", $1 );
+  }
+
+declare_enum_field <-
+  &'end'
+/ <IDENT> _ '=' _ <CONSTEXPR> _ &'end' {
+    $$ = atoi($2);
+    printf( "    %s = %s // %i\n", $1, $2, $$++ );
+  }
+/ <IDENT> _ '=' _ <CONSTEXPR> _ {
+    $$ = atoi($4);
+    printf( "    %s = %s, // %i\n", $3, $4, $$++ );
+  }
+/ <IDENT> _ &'end' {
+    printf( "    %s // %i\n", $5, $$++ );
+  }
+/ <IDENT> _ {
+    printf( "    %s, // %i\n", $6, $$++ );
+  }
+# End enum declaration grammar
+
+## Begin union declaration grammar
+declare_union <-
+  _ declare_union_begin (_ declare_union_field)* _ 'end' {
+    printf( "  } %s;\n\n", rootIdent );
+  }
+
+declare_union_begin <-
+  'union' _ <IDENT> {
+    strcpy( rootIdent, $1 );
+
+    printf( "  typedef union %s {\n", rootIdent );
+  }
+
+declare_union_field <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> {
+    printf( "    " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( ";\n" );
+  }
+# End union declaration grammar
+
+## Begin struct declaration grammar
+declare_struct <-
+  _ declare_struct_begin (_ declare_struct_field)* _ 'end' {
+    printf( "  } %s;\n\n", rootIdent );
+  }
+
+declare_struct_begin <-
+  'struct' _ <IDENT> {
+    strcpy( rootIdent, $1 );
+
+    printf( "  typedef struct %s {\n", rootIdent );
+  }
+
+declare_struct_field <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> {
+    printf( "    " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( ";\n" );
+  }
+# End struct declaration grammar
+
+## Begin type declaration grammar
+declare_type <-
+  'type' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> {
+
+    // Generate typedef
+    printf( "  typedef " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( ";\n" );
+
+    // Generate default value
+    printf( "  const " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( " = %s;\n\n", $3 );
+  }
+/ 'type' _ <TYPESPEC> _ <IDENT> {
+    printf( "  typedef " );
+    TranslateTypeSpec( (char*)$4, (char*)$5 );
+    printf( ";\n\n", $5 );
+  }
+# End type declaration grammar
+
+# End const declaration grammar
+declare_const <-
+  'const' _ <TYPESPEC> _ <IDENT> _ '=' _ <'{' _ CONSTEXPR (_ ',' _ CONSTEXPR)* _ '}'> {
+    printf( "  const " );
+    TranslateTypeSpec( (char*)$1, (char*)$2 );
+    printf( " = %s;\n\n", $3 );
+  }
+/ 'const' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> {
+    printf( "  const " );
+    TranslateTypeSpec( (char*)$4, (char*)$5 );
+    printf( " = %s;\n\n", $6 );
+  }
+## Begin const block grammar
+
+## Begin run block grammar
+run_block <-
+  run_begin _ declare_local_var* _ STATEMENT* _ 'end' {
+    printf(
+      "\n"
+      "  return 0;\n"
+      "}\n"
+    );
+  }
+
+run_begin <-
+  _ 'run' {
+    printf(
+      "int main( int paramArgc, char* paramArgv[] ) {\n"
+      "  argc = paramArgc;\n"
+      "  argv = paramArgv;\n\n"
+    );
+  }
+# End run block grammar
+
+## Begin statement grammar
+STATEMENT <-
+  &'end'
+/ # Function/Method call
+  _ <QUALIFIEDIDENT _ '(' _ (EXPR (_ ',' _ EXPR)*)* _ ')'> _ {
+    printf( "  %s;\n", $1 );
+  }
+/ # Variable expression assignment
+  _ <QUALIFIEDIDENT _ ASSIGNOP _ EXPR> _ {
+    printf( "  %s;\n", $2 );
+  }
+/ # Pointer address assignment expression
+  _ <'@'QUALIFIEDIDENT _ ASSIGNOP _ EXPR> _ {
+    printf( "  %s;\n", $3 );
+  }
+# End statement grammar
+
+## Begin constant expression gramamr
+CONSTEXPR <-
+  CONSTSUBEXPR
+
+CONSTSUBEXPR <-
+  CONSTLOGICALOR
+
+CONSTLOGICALOR <-
+  CONSTLOGICALOR _ '||' _ CONSTLOGICALAND
+/ CONSTLOGICALAND
+
+CONSTLOGICALAND <-
+  CONSTLOGICALAND _ '&&' _ CONSTBITOR
+/ CONSTBITOR
+
+CONSTBITOR <-
+  CONSTBITOR _ '|' _ CONSTBITXOR
+/ CONSTBITXOR
+
+CONSTBITXOR <-
+  CONSTBITXOR _ '^' _ CONSTBITAND
+/ CONSTBITAND
+
+CONSTBITAND <-
+  CONSTBITAND _ '&' _ CONSTEQUALS
+/ CONSTEQUALS
+
+CONSTEQUALS <-
+  CONSTEQUALS _ ('==' / '!=') _ CONSTCOMPARE
+/ CONSTCOMPARE
+
+CONSTCOMPARE <-
+  CONSTCOMPARE _ ('<' / '<=' / '>' / '>=') _ CONSTSHIFT
+/ CONSTSHIFT
+
+CONSTSHIFT <-
+  CONSTSHIFT _ ('<<' / '>>') _ CONSTTERM
+/ CONSTTERM
+
+CONSTTERM <-
+  CONSTTERM _ ('+' / '-') _ CONSTFACTOR
+/ CONSTFACTOR
+
+CONSTFACTOR <-
+  CONSTFACTOR _ ('*' / '/' / '%') _ CONSTUNARYOP
+/ CONSTUNARYOP
+
+CONSTUNARYOP <-
+  ('+' / '-' / '~' / '!') _ CONSTUNARYOP
+/ CONSTOPERAND
+
+###TODO: Add array dereferences to qualified identifiers
+CONSTOPERAND <-
+  INTNUM
+/ QUALIFIEDIDENT _ '(' _ SUBEXPR _ ')'
+/ (('++' / '--' / '@') _)? QUALIFIEDIDENT (_ ('++'/'--'))?
+/ '(' _ CONSTSUBEXPR _ ')'
+# End constant expression grammar
+
+## Begin expression grammar
+EXPR <-
+  SUBEXPR
+
+SUBEXPR <-
+  LOGICALOR
+
+LOGICALOR <-
+  LOGICALOR _ '||' _ LOGICALAND
+/ LOGICALAND
+
+LOGICALAND <-
+  LOGICALAND _ '&&' _ BITOR
+/ BITOR
+
+BITOR <-
+  BITOR _ '|' _ BITXOR
+/ BITXOR
+
+BITXOR <-
+  BITXOR _ '^' _ BITAND
+/ BITAND
+
+BITAND <-
+  BITAND _ '&' _ EQUALS
+/ EQUALS
+
+EQUALS <-
+  EQUALS _ ('==' / '!=') _ COMPARE
+/ COMPARE
+
+COMPARE <-
+  COMPARE _ ('<' / '<=' / '>' / '>=') _ SHIFT
+/ SHIFT
+
+SHIFT <-
+  SHIFT _ ('<<' / '>>') _ TERM
+/ TERM
+
+TERM <-
+  TERM _ ('+' / '-') _ FACTOR
+/ FACTOR
+
+FACTOR <-
+  FACTOR _ ('*' / '/' / '%') _ UNARYOP
+/ UNARYOP
+
+UNARYOP <-
+  ('+' / '-' / '~' / '!') _ UNARYOP
+/ OPERAND
+
+###TODO: Add array dereferences to qualified identifiers
+OPERAND <-
+  INTNUM
+/ QUALIFIEDIDENT _ '(' _ SUBEXPR _ ')'
+/ (('++' / '--' / '@') _)? QUALIFIEDIDENT (_ ('++'/'--'))?
+/ '(' _ SUBEXPR _ ')'
+# End expression grammar
+
+## Begin type definitions
+#TYPESPEC <-
+#  '@' _ SIMPLETYPE
+#/ '@' _ SIMPLETYPE _ '[' _ CONSTEXPR? _ ']'
+#/ '@' _ '[' _ CONSTEXPR? _ ']'
+#/ '@'
+#/ SIMPLETYPE _ '[' _ CONSTEXPR _ ']'
+#/ SIMPLETYPE
+
+TYPESPEC <-
+  TYPESPEC_POINTER _ TYPESPEC_TYPE? _ TYPESPEC_POINTER_DIMENSION _ &IDENT
+/ TYPESPEC_TYPE _ TYPESPEC_POINTER_DIMENSION _ &IDENT
+/ SIMPLETYPE _ &IDENT
+
+TYPESPEC_POINTER <-
+  '@'
+/ TYPESPEC_ARRAY_DIMENSION
+
+TYPESPEC_POINTER_DIMENSION <-
+  '[' (_ INTNUM)? ']'
+
+TYPESPEC_ARRAY_DIMENSION <-
+  '[' _ INTNUM _ ']'
+
+TYPESPEC_TYPE <-
+  SIMPLETYPE
+
+SIMPLETYPE <-
+  BASETYPE
+/ IDENT
+
+BASETYPE <-
+  'int8' / 'int16' / 'int32' / 'int'
+  / 'uint8' / 'uint16' / 'uint32' / 'uint64' / 'uint'
+  / 'fsize' / 'size'
+  / 'bool' / 'char'
+# End type definitions
+
+## Begin tokenizer definitions
+EOF <- !.
+
+_ <- (SPACE / MLCOMMENT / SLCOMMENT)*
+
+SPACE <- [ \t\r\n]
+EOL <- [\r\n]
+
+MLCOMMENT <- '/*' (!'*/' .)* '*/'
+
+SLCOMMENT <- '//' (!EOL .)* EOL
+
+ASSIGNOP <-
+  '=' / '+=' / '-=' / '*=' / '/=' / '%='
+  / '<<=' / '>>=' / '&=' / '^=' / '|='
+
+INTNUM <-
+  '0x'[0-9a-fA-F]+
+/ [0-9]+
+
+IDENT <- [_a-zA-Z][_a-zA-Z0-9]*
+QUALIFIEDIDENT <- IDENT (_ '.' _ IDENT)*
+# End tokenizer definitions
+
+%%
+
+int main( int argc, char* argv[] ) {
+  pcc_context_t *ctx = pcc_create(NULL);
+
+  while( pcc_parse(ctx, NULL) ) {
+  };
+
+  pcc_destroy( ctx );
+
+  return 0;
+}

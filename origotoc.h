@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.5 Alpha
+ * OrigoToC 0.1.6 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -73,8 +73,8 @@ int JoinPath( const char* fromDir, const char* fromBaseName,
  *  OrigoToC program declarations
  */
 
-#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 5, ALPHA_RELEASE)
-#define ORIGOTOC_VERSTRING "0.1.5 Alpha"
+#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 6, ALPHA_RELEASE)
+#define ORIGOTOC_VERSTRING "0.1.6 Alpha"
 #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
 
 typedef struct OrigoOptions {
@@ -179,15 +179,8 @@ enum TokenCode {
 
 void Error( unsigned ofCode, const char* message );
 
-void ImplementationPending( unsigned onLine, unsigned onColumn,
-  const char* message );
-
-void DuplicateIdentifier( unsigned onLine, unsigned onColumn,
-  const char* message );
-void Expected( unsigned onLine, unsigned onColumn,
-  const char* message );
-void Unexpected( unsigned onLine, unsigned onColumn,
-  const char* message );
+void SyntaxError( unsigned onLine, unsigned onColumn,
+  const char* prefix, const char* message );
 
 /*
  *  Symbol table declarations
@@ -224,10 +217,13 @@ typedef struct RetFile {
   unsigned line;
   unsigned column;
 
-  int runDeclared;
-
   char curCh;
   char nextCh;
+
+  int runDeclared;
+
+  unsigned tokenLine;
+  unsigned tokenColumn;
 
   size_t markedPos;
   unsigned markedLine;
@@ -264,9 +260,13 @@ unsigned FindTopLevelKeyword( const char* identName );
 int ReadTopLevelKeyword( RetFile* fromSource, unsigned* toTokenCode );
 
 int ReadBinaryDigit( RetFile* fromSource );
+int ReadBinaryNumber( RetFile* fromSource, unsigned* toUint );
 int ReadOctalDigit( RetFile* fromSource );
+int ReadOctalNumber( RetFile* fromSource, unsigned* toUint );
 int ReadHexDigit( RetFile* fromSource );
+int ReadHexNumber( RetFile* fromSource, unsigned* toUint );
 int ReadDecimalDigit( RetFile* fromSource );
+int ReadDecimalNumber( RetFile* fromSource, unsigned* toUint );
 int ReadNumber( RetFile* fromSource, unsigned* toUint );
 
 int ReadString( RetFile* fromSource, char** toString );
