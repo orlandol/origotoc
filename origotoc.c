@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.6 Alpha
+ * OrigoToC 0.1.7 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -50,7 +50,7 @@ void FreePtr( void** ptrVar ) {
 }
 
 /*
- *  Path split functions
+ *  Path functions
  */
 int SplitPath( const char* fromFullPath, char** toDir,
   char** toBaseName, char** toExt ) {

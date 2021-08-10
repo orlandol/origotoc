@@ -1,11 +1,37 @@
 
 %header {
+  #include "keyarray.h"
+
+  // begin version format Maj.Min.Patch.ReleaseType declarations
+  #define EXPERIMENTAL_RELEASE 7
+  #define ALPHA_RELEASE 8
+  #define GAMMA_RELEASE 9
+  #define BETA_RELEASE 10
+  #define RELEASE_CANDIDATE 11
+  #define STABLE_RELEASE 12
+  #define HOTFIX_RELEASE 13
+  #define LTS_RELEASE 14
+  #define FINAL_RELEASE 15
+
+  #define MAKEVEREXT(major, minor, patch, release)\
+    ((((major) & 0xFF) << 24) | (((minor) & 0xFF) << 16) |\
+     (((patch) & 0x0FFF) << 4) | ((release) & 0x000F))
+
+  #define MAJORVEREXT(version) (((version) >> 24) & 0xFF)
+  #define MINORVEREXT(version) (((version) >> 16) & 0xFF)
+  #define PATCHVEREXT(version) (((version) >> 4) & 0x0FFF)
+  #define RELEASETYPEEXT(version) ((version) & 0x000F)
+  // end version format declarations
+
   // begin general declarations
   #define IDENT_MAXLEN 32
   #define IDENT_MAXINDEX (IDENT_MAXLEN - 1)
-  // end general declarations
+  #define IDENTPAIR_MAXLEN 64
+  #define IDENTPAIR_MAXINDEX (IDENTPAIR_MAXLEN - 1)
 
-  #include "keyarray.h"
+  #define TOKENSTR_MAXLEN 2048
+  #define TOKENSTR_MAXINDEX (TOKENSTR_MAXLEN - 1)
+  // end general declarations
 
   // begin enum field declarations
   typedef struct EnumField {
@@ -19,18 +45,20 @@
   int CopyEnumField( EnumField* dest, EnumField* source );
   // end enum field declarations
 
-  // begin parse state declarations
-  typedef struct EnumBlockState {
-    char qualifier[IDENT_MAXLEN];
-    EnumFieldTable* enumTable;
-  } EnumBlockState;
+  // begin symbol table declarations
+  typedef struct TypeSpec {
+    int pointerType;
+    unsigned simpleType;
+    char simpleTypeName[IDENTPAIR_MAXLEN];
+    unsigned dimCount;
+  } TypeSpec;
 
-  typedef struct BlockState {
-    union {
-      EnumBlockState enumState;
-    };
-  } BlockState;
-  // end parse state declarations
+  typedef struct Symbol {
+    int tokenCode;
+  } Symbol;
+
+  DECLARE_STRING_KEYARRAY_TYPES( SymTable, Symbol )
+  // end symbol table declarations
 }
 
 %source {
@@ -50,6 +78,209 @@
 */
 
   #include "keyarray.h"
+
+  // begin helper functions
+  void FreePtr( void** ptrVar ) {
+    if( ptrVar ) {
+      if( *ptrVar ) {
+        free( *ptrVar );
+        *ptrVar = NULL;
+      }
+    }
+  }
+  // end helper functions
+
+  // begin path functions
+  int SplitPath( const char* fromFullPath, char** toDir,
+    char** toBaseName, char** toExt ) {
+
+    const char* pathCh;
+    const char* pathDir;
+    const char* pathBaseName;
+    const char* pathExt;
+    size_t curLen = 0;
+    size_t dirLen = 0;
+    size_t basenameLen = 0;
+    size_t extLen = 0;
+    char* newDir = NULL;
+    char* newBaseName = NULL;
+    char* newExt = NULL;
+
+    // Validate parameters
+    if( (fromFullPath == NULL) || (*fromFullPath == '\0') ) { return 1; }
+    if( (toDir == NULL) || *toDir ) { return 2; }
+    if( (toBaseName == NULL) || *toBaseName ) { return 3; }
+    if( (toExt == NULL) || *toExt ) { return 4; }
+
+    pathDir = fromFullPath;
+    pathBaseName = fromFullPath;
+    pathExt = fromFullPath;
+
+    // Find last \ or / in file path
+    pathCh = pathDir;
+    curLen = 0;
+    while( *pathCh )  {
+      if( *pathCh == '\\' || *pathCh == '/' ) {
+        pathBaseName = pathCh + 1;
+        dirLen = curLen + 1;
+      }
+      pathCh++;
+      curLen++;
+    }
+
+    // Find the first . after the last \ or /
+    pathCh = pathBaseName;
+
+    if( (*pathCh == '.') ) {
+      // Special case .file as base name, when [dir\ or dir/].file[.ext]
+      pathCh++;
+      pathExt = pathCh;
+      basenameLen++;
+    }
+
+    while( *pathCh )  {
+      if( *pathCh == '.' ) {
+        pathExt = pathCh;
+        break;
+      }
+      pathCh++;
+      basenameLen++;
+    }
+
+    // Get the length of the file extension
+    pathCh = pathExt;
+    extLen = 0;
+    while( *pathCh )  {
+      if( *pathCh == '.' ) {
+        break;
+      }
+      pathCh++;
+      pathExt++;
+    }
+    while( *pathCh ) {
+      pathCh++;
+      extLen++;
+    }
+
+    if( (dirLen | basenameLen | extLen) == 0 ) { return 5; }
+
+    if( dirLen ) {
+      newDir = malloc((dirLen + 1) * sizeof(char));
+      if( newDir == NULL ) { goto ExitError; }
+      memcpy( newDir, pathDir, dirLen * sizeof(char) );
+      newDir[dirLen] = '\0';
+      *toDir = newDir;
+    }
+
+    if( basenameLen ) {
+      newBaseName = malloc((basenameLen + 1) * sizeof(char));
+      if( newBaseName == NULL ) { goto ExitError; }
+      memcpy( newBaseName, pathBaseName, basenameLen * sizeof(char) );
+      newBaseName[basenameLen] = '\0';
+      *toBaseName = newBaseName;
+    }
+
+    if( extLen ) {
+      newExt = malloc((extLen + 1) * sizeof(char));
+      if( newExt == NULL ) { goto ExitError; }
+      memcpy( newExt, pathExt, extLen * sizeof(char) );
+      newExt[extLen] = '\0';
+      *toExt = newExt;
+    }
+
+    return 0;
+
+  ExitError:
+    FreePtr( &newDir );
+    FreePtr( &newBaseName );
+    FreePtr( &newExt );
+    return 6;
+  }
+
+  int JoinPath( const char* fromDir, const char* fromBaseName,
+    const char* fromExt, char** toFullPath ) {
+
+    char* newPath = NULL;
+    size_t totalLen;
+    const char* tmpCh;
+    char pathSeparator = '\0';
+    char extDot = '\0';
+
+    // Validate parameters
+    if( (toFullPath == NULL) || *toFullPath ) { return 4; }
+    if( (fromDir == NULL) && (fromBaseName == NULL)
+      && (fromExt == NULL) ) { return 5; }
+
+    // Calculate the total string length
+    totalLen = 0;
+    if( fromDir ) {
+      totalLen = strlen(fromDir);
+      if( totalLen ) {
+        // Check for trailing path separator
+        if( (fromDir[totalLen - 1] != '\\') && (fromDir[totalLen - 1] != '/') ) {
+          totalLen++;
+          // If path separator isn't at end, detect which slash to use
+          tmpCh = fromDir;
+          pathSeparator = '\\'; // default to '\'
+          while( *tmpCh ) {
+            if( (*tmpCh == '\\') || (*tmpCh == '/') ) {
+              pathSeparator = *tmpCh;
+              break;
+            }
+            tmpCh++;
+          }
+        }
+      }
+    }
+
+    if( fromBaseName ) {
+      totalLen += strlen(fromBaseName);
+      // Skip slash at start of BaseName
+      if( (*fromBaseName == '\\') || (*fromBaseName == '/') ) {
+        fromBaseName++;
+        totalLen--;
+      }
+      // If a slash remains, the base name is [probably?] invalid
+      if( (*fromBaseName == '\\') || (*fromBaseName == '/') ) { return 6; }
+    }
+
+    if( fromExt ) {
+      totalLen += strlen(fromExt);
+      // Add a dot if missing from file extension
+      if( *fromExt != '.' ) {
+        extDot = '.';
+        totalLen++;
+      }
+    }
+
+    // Allocate string buffer
+    newPath = malloc((totalLen + 1) * sizeof(char));
+    if( newPath == NULL ) { return 7; }
+    *newPath = '\0';
+
+    // Copy in each parameter
+    if( fromDir ) {
+      strcat( newPath, fromDir );
+      if( pathSeparator ) {
+        strncat( newPath, &pathSeparator, 1 );
+      }
+    }
+
+    if( fromBaseName ) {
+      strcat( newPath, fromBaseName );
+    }
+
+    if( fromExt ) {
+      if( extDot ) {
+        strncat( newPath, &extDot, 1 );
+      }
+      strcat( newPath, fromExt );
+    }
+
+    *toFullPath = newPath;
+    return 0;
+  }
+  // end path functions
 
   // begin enum field table
   EnumFieldTable* enumFieldTable = NULL;
@@ -78,9 +309,39 @@
     CopyEnumField, FreeEnumField )
   // end
 
-  // begin temporary declarations
-  char enumQualifier[IDENT_MAXLEN] = {};
-  // end temporary declarations
+  // begin symbol table declarations
+  void FreeSymbol( Symbol* data ) {
+  }
+
+  int CopySymbol( Symbol* dest, Symbol* source ) {
+    return 0;
+  }
+
+  DECLARE_STRING_KEYARRAY_CREATE( CreateSymTable, SymTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeSymTable, SymTable, FreeSymbol )
+
+  DECLARE_STRING_KEYARRAY_INSERT( InsertSymbol, SymTable, Symbol )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveSymbol, SymTable, FreeSymbol )
+
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupSymbol, SymTable, Symbol )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifySymbol, SymTable, Symbol )
+
+  DECLARE_STRING_KEYARRAY_FINDINDEX( SymbolIndex, SymTable )
+
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( ReleaseUnusedSymbols, SymTable )
+
+  DECLARE_STRING_KEYARRAY_COPY( CopySymTable, SymTable, Symbol,
+    CopySymbol, FreeSymbol )
+  // end symbol table declarations
+
+  // begin global variables
+  char qualifier[IDENT_MAXLEN];
+  EnumFieldTable* enumTable;
+  unsigned enumFieldValue;
+
+  SymTable* symTable = NULL;
+  SymTable* localTable = NULL;
+  // end global variables
 }
 
 program <-
@@ -107,23 +368,24 @@ enum_declaration <-
 
 enum_header <-
   'enum' _ <IDENT> {
-    strncpy( enumQualifier, $1, IDENT_MAXINDEX );
-    printf( "ENUM[%s]\n", enumQualifier );
+    enumFieldValue = 0;
+    strncpy( qualifier, $1, IDENT_MAXINDEX );
+    printf( "ENUM[%s]\n", qualifier );
   }
 
 enum_field_declaration <-
   &'end'
 / <IDENT> _ '=' _ <CONSTEXPR> _ ',' {
-    printf( "ENUMFIELD[%s.%s = %s],", enumQualifier, $1, $2 );
+    printf( "ENUMFIELD[%s.%s = %s],", qualifier, $1, $2 );
   }
 / <IDENT> _ '=' _ <CONSTEXPR> {
-    printf( "ENUMFIELD[%s.%s = %s]\n", enumQualifier, $3, $4 );
+    printf( "ENUMFIELD[%s.%s = %s]\n", qualifier, $3, $4 );
   }
 / <IDENT> _ ',' {
-    printf( "ENUMFIELD[%s.%s],", enumQualifier, $5 );
+    printf( "ENUMFIELD[%s.%s],", qualifier, $5 );
   }
 / <IDENT> {
-    printf( "ENUMFIELD[%s.%s]\n", enumQualifier, $6 );
+    printf( "ENUMFIELD[%s.%s]\n", qualifier, $6 );
   }
 # End enum ... end
 
@@ -220,6 +482,9 @@ EOF <- !.
 %%
 
 void Cleanup() {
+  FreeSymTable( &symTable );
+  FreeSymTable( &localTable );
+
   FreeEnumFieldTable( &enumFieldTable );
 }
 

@@ -1,7 +1,7 @@
 /* 
  * MIT License
  * 
- * OrigoToC 0.1.6 Alpha
+ * OrigoToC 0.1.7 Alpha
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -61,7 +61,7 @@ extern char** argv;
 void FreePtr( void** ptrVar );
 
 /*
- *  Path split functions
+ *  Path functions
  */
 
 int SplitPath( const char* fromFullPath, char** toDir,
@@ -73,8 +73,8 @@ int JoinPath( const char* fromDir, const char* fromBaseName,
  *  OrigoToC program declarations
  */
 
-#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 6, ALPHA_RELEASE)
-#define ORIGOTOC_VERSTRING "0.1.6 Alpha"
+#define ORIGOTOC_VERSION MAKEVEREXT(0, 1, 7, ALPHA_RELEASE)
+#define ORIGOTOC_VERSTRING "0.1.7 Alpha"
 #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
 
 typedef struct OrigoOptions {
