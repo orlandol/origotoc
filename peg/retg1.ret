@@ -1,7 +1,7 @@
 /*
  * MIT License
  * 
- * OrigoToC
+ * Retineo G1
  * Copyright (c) 2014-2021 Orlando Llanes
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -23,13 +23,27 @@
  * SOFTWARE.
  * 
  */
-program Retineo
+program retg1
 
-enum Foo
-  field1 = 1234, field2
-  field3 = field1
-  field4, field5
-  field6
+enum TokenCode
+  generalToken = 0 //(1024 * 0)
+  tkEOF
+  tkEOL
+  tkIdent
+
+  topLevelToken = 1024 /*(1024 * 1)*/, tlEnum
+  tlUnion
+  tlStruct
+  tlType
+  tlConst
+  tlVar
+  tlFuncDecl
+  tlImport
+  tlFunc
+  tlObject
+  tlInterface
+  tlMethod
+  tlRun
 end
 
 run

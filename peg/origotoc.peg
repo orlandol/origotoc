@@ -358,6 +358,7 @@ program_header <-
 ## Begin top level declaration
 declaration <-
   _ enum_declaration _
+/ _ union_declaration _
 / _ struct_declaration _
 # End top level declaration
 
@@ -375,14 +376,14 @@ enum_header <-
 
 enum_field_declaration <-
   &'end'
-/ <IDENT> _ '=' _ <CONSTEXPR> _ ',' {
-    printf( "ENUMFIELD[%s.%s = %s],", qualifier, $1, $2 );
+/ <IDENT> _ '=' _ <CONSTEXPR> _ ',' _ {
+    printf( "ENUMFIELD[%s.%s = %s], ", qualifier, $1, $2 );
   }
 / <IDENT> _ '=' _ <CONSTEXPR> {
     printf( "ENUMFIELD[%s.%s = %s]\n", qualifier, $3, $4 );
   }
-/ <IDENT> _ ',' {
-    printf( "ENUMFIELD[%s.%s],", qualifier, $5 );
+/ <IDENT> _ ',' _ {
+    printf( "ENUMFIELD[%s.%s], ", qualifier, $5 );
   }
 / <IDENT> {
     printf( "ENUMFIELD[%s.%s]\n", qualifier, $6 );
@@ -396,19 +397,36 @@ struct_declaration <-
 
 struct_header <-
   'struct' _ <IDENT> _ {
+    strncpy( qualifier, $1, IDENT_MAXINDEX );
+    printf( "STRUCT[%s]\n", $1 );
   }
 
+# TYPESPEC IDENT
 struct_field_declaration <-
   &'end'
-/ ',' _ <IDENT> _ '=' _ <CONSTEXPR> _ {
-  }
-/ ',' _ <IDENT> _ {
-  }
-/ <IDENT> _ '=' _ <CONSTEXPR> _ {
-  }
-/ <IDENT> _ {
+/ <TYPESPEC> _ <IDENT> _ {
+    printf( "STRUCTFIELD[%s %s.%s]\n", $1, qualifier, $2 );
   }
 # End struct ... end
+
+## Begin union ... end
+union_declaration <-
+  union_header (_ union_field_declaration)* _ 'end' {
+  }
+
+union_header <-
+  'union' _ <IDENT> _ {
+    strncpy( qualifier, $1, IDENT_MAXINDEX );
+    printf( "UNION[%s]\n", $1 );
+  }
+
+# TYPESPEC IDENT
+union_field_declaration <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ {
+    printf( "UNIONFIELD[%s %s.%s]\n", $1, qualifier, $2 );
+  }
+# End union ... end
 
 ## Begin run ... end
 run_block <-
@@ -433,16 +451,22 @@ statement <-
 # End statement
 
 ## Begin type spec
-#TYPESPEC <-
-#  SIMPLETYPE
-#
-#SIMPLETYPE <-
-#  BASETYPE
-#
-#BASETYPE <-
-#  'int8' / 'int16' / 'int32' / 'int64' / 'int'
-#/ 'uint8' / 'uint16' / 'uint32' / 'uint64' / 'uint'
-#/ 'char' / 'bool' / 'size' / 'fsize'
+TYPESPEC <-
+  '@' _ SIMPLETYPE _ '[' _ ']'
+/ '@' _ SIMPLETYPE _ '[' _ <CONSTEXPR> _ ']'
+/ '@' _ SIMPLETYPE
+/ SIMPLETYPE _ '[' _ <CONSTEXPR> _ ']'
+/ SIMPLETYPE
+
+SIMPLETYPE <-
+  BASETYPE
+
+BASETYPE <-
+  'int8' / 'int16' / 'int32' / 'int64' / 'int'
+/ 'uint8' / 'uint16' / 'uint32' / 'uint64' / 'uint'
+/ 'char' / 'bool' / 'size' / 'fsize'
+/ 'any'
+/ IDENT
 # End type spec
 
 ## Begin constant expression

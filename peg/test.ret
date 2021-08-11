@@ -1,0 +1,26 @@
+program Test
+
+enum Foo
+  field1 = 1234, field2
+  field3 = field1
+  field4, field5
+  field6
+end
+
+union Bar
+  uint field1
+  fsize field2
+end
+
+struct Baz
+  @Baz next
+  @Bar[] barList
+  @Bar[100] barList
+  bool[100] fooList
+  int field1
+  char field2
+end
+
+run
+Quux:
+end
