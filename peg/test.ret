@@ -9,17 +9,38 @@ end
 
 union Bar
   uint field1
-  fsize field2
+  size field2
+  fsize field3
 end
 
 struct Baz
-  @Baz next
-  @Bar[] barList
-  @Bar[100] barList
-  bool[100] fooList
-  int field1
-  char field2
+  @Baz field1
+  @Bar[] field2
+  @Bar[100] field3
+  bool[100] field4
+  int field5
+  char field6
 end
+
+type @int[100] PointerIntArray100
+type @int[] PointerIntArrayX
+type @int PointerInt
+type @any PointerAny
+type int[100] IntArray100
+type int IntType
+
+var
+  @PointerInt var1
+  int var2
+end
+
+funcdecl int Func1()
+funcdecl int Func2( int param1 )
+funcdecl int Func3( int param1, size param2 )
+funcdecl int Func4( int param1, size param2, fsize param3 )
+
+type uint UINT
+import func none ExitProcess( UINT uExitCode ) from "kernel32.dll"
 
 run
 Quux:
