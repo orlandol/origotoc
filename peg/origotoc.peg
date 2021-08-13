@@ -361,14 +361,16 @@ declaration <-
 / _ union_declaration _
 / _ struct_declaration _
 / _ type_declaration _
-/ _ global_var_declaration_block _
+/ _ global_var_block _
 / _ func_prototype_declaration _
 / _ import_func_declaration _
+/ _ func_block _
 #/ _ object_declaration _
-#/ _ object_new_declaration _
-#/ _ object_free_declaration _
+#/ _ object_ctor_block _
+#/ _ object_dtor_block _
 #/ _ interface_declaration _
-#/ _ method_declaration _
+#/ _ operator_block _
+#/ _ method_block _
 # End top level declaration
 
 ## Begin enum ... end
@@ -449,7 +451,7 @@ type_declaration <-
 ## End type declaration
 
 ## Begin global var declaration
-global_var_declaration_block <-
+global_var_block <-
   global_var_begin (_ global_var_declaration)* _ 'end' {
   }
 
@@ -467,6 +469,25 @@ global_var_declaration <-
   }
 # End global var declaration
 
+## Begin local var declaration
+local_var_block <-
+  local_var_begin (_ local_var_declaration)* _ 'end' {
+  }
+
+local_var_begin <-
+  'var' _ {
+  }
+
+local_var_declaration <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ '=' _ <EXPR> {
+    printf( "LOCALVAR[%s %s = %s]\n", $1, $2, $3 );
+  }
+/ <TYPESPEC> _ <IDENT> {
+    printf( "LOCALVAR[%s %s]\n", $4, $5 );
+  }
+# End local var declaration
+
 ## Begin parameter declarations
 parameter_declarations <-
   _ parameter_declaration (_ ',' _ parameter_declaration)* _ {
@@ -477,21 +498,45 @@ parameter_declaration <- <TYPESPEC> _ <IDENT> _
 
 ## Begin funcdecl
 func_prototype_declaration <-
-  func_prototype_begin _ <TYPESPEC> _ <IDENT> _ '(' _ ')' _ {
-    printf( "FUNCDECL[%s %s()]\n", $1, $2 );
+  func_prototype_begin _ func_prototype_specs? _
+    func_prototype_name _ func_prototype_parameters _ {
+    printf( "\n" );
   }
-/ func_prototype_begin _ <TYPESPEC> _ <IDENT> _ '(' _ <parameter_declarations> _ ')' _ {
-    printf( "FUNCDECL[%s %s ( %s )]\n", $3, $4, $5 );
+/ func_prototype_begin _ func_prototype_specs? _
+    func_prototype_name _ '(' _ ')' _ {
+    printf( "[()]\n" );
   }
 
 func_prototype_begin <-
-  'funcdecl' {
+  'funcdecl' _ {
+    printf( "FUNCDECL" );
+  }
+
+func_prototype_specs <-
+  <CALLSPEC> _ <TYPESPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <CALLSPEC> _ {
+    printf( "[%s]", $3 );
+  }
+/ <TYPESPEC> _ {
+    printf( "[%s]", $4 );
+  }
+
+func_prototype_name <-
+  <IDENT> _ {
+    printf( "[%s]", $1 );
+  }
+
+func_prototype_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]", $1 );
   }
 # End funcdecl
 
 ## Begin import function
 import_func_declaration <-
-  import_func_begin _ import_func_spec? _ import_func_name _ import_func_parameters? _
+  import_func_begin _ import_func_specs? _ import_func_name _ import_func_parameters _
     import_func_from _ import_func_as? _ {
     printf( "\n" );
   }
@@ -501,15 +546,18 @@ import_func_begin <-
     printf( "IMPORTFUNC" );
   }
 
-import_func_spec <-
+import_func_specs <-
   <CALLSPEC> _ <TYPESPEC> {
     printf( "[%s %s]", $1, $2 );
   }
+/ <TYPESPEC> _ <CALLSPEC> {
+    printf( "[%s %s]", $3, $4 );
+  }
 / <CALLSPEC> {
-    printf( "[%s]", $3 );
+    printf( "[%s]", $5 );
   }
 / <TYPESPEC> {
-    printf( "[%s]", $4 );
+    printf( "[%s]", $6 );
   }
 
 import_func_name <-
@@ -519,7 +567,10 @@ import_func_name <-
 
 import_func_parameters <-
   '(' _ <parameter_declarations> _ ')' {
-    printf( "(%s)", $1 );
+    printf( "[(%s)]", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]" );
   }
 
 import_func_from <-
@@ -533,14 +584,55 @@ import_func_as <-
   }
 # Emd import function
 
+## Begin func block
+func_block <-
+  func_begin _ func_specs? _ func_name _ func_parameters _
+    local_var_block* _ statement* _ 'end' _ {
+    printf( "ENDFUNC\n" );
+  }
+
+func_begin <-
+  'func' _ {
+    printf( "FUNC" );
+  }
+
+func_specs <-
+  <CALLSPEC> _ <TYPESPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <TYPESPEC> _ <CALLSPEC> {
+    printf( "[%s %s]", $3, $4 );
+  }
+/ <CALLSPEC> _ {
+    printf( "[%s]", $5 );
+  }
+/ <TYPESPEC> _ {
+    printf( "[%s]", $6 );
+  }
+
+func_name <-
+  <IDENT> _ {
+    printf( "[%s]", $1 );
+  }
+
+func_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]\n", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]\n" );
+  }
+# End func block
+
 ## Begin run ... end
 run_block <-
-  run_begin (_ statement)* _ 'end' {
-    printf( "RUN\n" );
+  run_begin (_ local_var_block)* (_ statement)* _ 'end' {
+    printf( "ENDRUN\n" );
   }
 
 run_begin <-
   'run' {
+    printf( "RUN\n" );
   }
 # End run ... end
 
