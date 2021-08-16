@@ -1,0 +1,271 @@
+
+program Test
+
+enum Enum1
+  field1 = 1234, field2
+  field3 = field1
+  field4, field5
+  field6
+end
+
+union Union1
+  uint field1
+  size field2
+  fsize field3
+end
+
+struct Struct1
+  @Union1 field1
+  @Union1[] field2
+  @Union1[100] field3
+  bool[100] field4
+  int field5
+  char field6
+end
+
+type @int[100] PointerIntArray100
+type @int[] PointerIntArrayX
+type @int PointerInt
+type @any PointerAny
+type int[100] IntArray100
+type int IntType
+
+const int const1 = 1234
+const size const2 = const1
+
+var
+  PointerInt var1
+  int var2
+end
+
+funcdecl none Func1()
+funcdecl @any Func2()
+funcdecl int Func3( int param1 )
+funcdecl int Func4( int param1, size param2 )
+funcdecl int Func5( int param1, size param2, fsize param3 )
+
+type uint UINT
+import func none ExitProcess( UINT uExitCode ) from "kernel32.dll"
+
+func none Func1()
+  var
+    int local1
+  end
+Label1:
+  goto Label2
+  goto Label1
+Label2:
+  return
+end
+
+object Object1
+  @Object1 member1
+  int member2
+end
+
+object Object2 inherits Object1
+  PointerIntArray100 member1
+  size member2
+end
+
+object Object3
+end
+
+object Object4 inherits Object2
+mutable
+  bool member1
+  uint member2
+immutable
+  fsize member3
+end
+
+ctor Object4()
+  var
+    char local1
+  end
+
+Label1:
+  goto Label2
+  goto Label1
+Label2:
+
+  return 1
+end
+
+dtor Object4()
+  var
+    char local1
+  end
+
+Label1:
+  goto Label2
+  goto Label1
+Label2:
+
+  return 1
+end
+
+interface Interface1
+  method none m1()
+  method int m2()
+  method none m3( int param1, char param2, fsize param3 )
+  method bool m4( uint param1, bool param2, size param3 )
+end
+
+interface Interface2
+end
+
+interface Interface3 implements Object1 inherits Interface1, Interface2
+  method PointerInt m5()
+end
+
+interface Interface4 inherits Interface3
+end
+
+interface Interface5 implements Object3
+end
+
+interface Interface6 inherits Interface4, Interface5
+end
+
+method none Interface1.m1()
+  var
+    int local1
+  end
+Label1:
+  goto Label2
+  goto Label1
+Label2:
+end
+
+struct Struct2
+  uint field1
+  uint field2
+end
+
+operator Struct2 + ( Struct2 right )
+  var
+    uint local1
+  end
+Label1:
+  goto Label2
+  goto Label1
+Label2:
+  result.field5 += right.field5
+  return result
+end
+
+unary ++ Struct2
+  var
+    uint local1
+  end
+Label1:
+  goto Label2
+  goto Label1
+Label2:
+  ++result.field2
+  return result
+end
+
+run
+  var
+    int local1 = 1234 + 1 << math.abs(3)
+    int local2
+    Object1 local2
+  end
+Label1:
+  goto Label2
+  goto Label1
+Label2:
+  bind( local2, Interface1, Interface3.m5 )
+
+  if local1 == 1234 then exit(1)
+
+  if local1 <= local2.member2
+    if local1 == 4321 then exit(local2.member2)
+  elseif local1 > local2.member2
+    exit(1234)
+  else
+    exit(1111)
+  endif
+
+  Loop1:for local1 in [123, 234, 345]
+    break
+    next
+    if local1 == 234 then break
+  Label3:
+    goto Label3
+  endfor
+
+  Loop2:for local1 = 0 to 1234
+    break
+    next
+    if local1 == 234 then break
+  Label3:
+    goto Label3
+  endfor
+
+  Loop3:for local1 = 4321 downto 11
+    break
+    next
+    if local1 == 234 then break
+  Label3:
+    goto Label3
+  endfor
+
+  for local1 in [123, 345, 456]
+    for local2 = 0 to local1
+      break
+      next
+    endfor
+    if local1 == 456 then break
+  endfor
+
+  Loop4:repeat
+    break
+    next
+    if local1 == 234 then break
+  Label3:
+    goto Label3
+    local--
+  when local1 == 1234
+
+  repeat
+    break
+    next
+    if local1 == 234 then break
+  Label3:
+    goto Label3
+    local--
+  when local1 == 1234
+
+  Loop5:while local1 == 1234
+    break
+    next
+    if local1 == 234 then break
+  Label3:
+    goto Label3
+    local--
+  endwhile
+
+  while local1 == 1234
+    break
+    next
+    if local1 == 234 then break
+  Label3:
+    goto Label3
+    local--
+  endwhile
+
+  for local1 in [1234, 4567, 7890, local2]
+    for local2 = 0 to local1
+      for local2 = local1 downto 0
+        repeat
+          while local1
+            if local1 == 7890 then break
+          endwhile
+        when local2
+      endfor
+    endfor
+  endfor
+end

@@ -1,0 +1,58 @@
+
+%header {
+  /// Begin parse state auxil declarations
+  typedef struct SourceFile {
+    FILE* handle;
+  } SourceFile;
+
+  typedef struct ParseState {
+    SourceFile source;
+  } ParseState;
+  // End parse state auxil declarations
+}
+
+%auxil "ParseState* "
+
+%source {
+  // begin strnlen copied from packcc.c source file, as a workaround for TinyCC
+  #ifdef __TINYC__
+  static size_t strnlen(const char *str, size_t maxlen) {
+    size_t i;
+    for( i = 0; (i < maxlen) && str[i]; i++ ) {
+    };
+    return i;
+  }
+  #endif
+  // end strnlen
+
+/*
+  static const char *dbg_str[] = { "Evaluating rule", "Matched rule", "Abandoning rule" };
+  #define PCC_DEBUG(event, rule, level, pos, buffer, length) \
+      fprintf(stderr, "%*s%s %s @%d [%.*s]\n", level * 2, "", dbg_str[event], rule, pos, length, buffer);
+*/
+
+  /// Begin PCC_GETCHAR override
+  int ReadChar( ParseState* auxil ) {
+    if( auxil && auxil->source.handle ) {
+      return fgetc(auxil->source.handle);
+    }
+    return EOF;
+  }
+  #define PCC_GETCHAR(auxil) ReadChar(auxil);
+  // End PCC_GETCHAR override
+}
+
+%%
+
+ParseState parseState = {};
+
+int main( int argc, char* argv[] ) {
+  pcc_context_t *ctx = pcc_create(&parseState);
+
+  while( pcc_parse(ctx, NULL) ) {
+  };
+
+  pcc_destroy( ctx );
+
+  return 0;
+}

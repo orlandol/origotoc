@@ -1,0 +1,2830 @@
+#
+# MIT License
+#
+# OrigoToC 0.2.0 Alpha
+# Copyright (c) 2014-2021 Orlando Llanes
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+%header {
+  /// Begin version format Maj.Min.Patch.ReleaseType declarations
+  #define EXPERIMENTAL_RELEASE 7
+  #define ALPHA_RELEASE 8
+  #define GAMMA_RELEASE 9
+  #define BETA_RELEASE 10
+  #define RELEASE_CANDIDATE 11
+  #define STABLE_RELEASE 12
+  #define HOTFIX_RELEASE 13
+  #define LTS_RELEASE 14
+  #define FINAL_RELEASE 15
+
+  #define MAKEVEREXT(major, minor, patch, release)\
+    ((((major) & 0xFF) << 24) | (((minor) & 0xFF) << 16) |\
+     (((patch) & 0x0FFF) << 4) | ((release) & 0x000F))
+
+  #define MAJORVEREXT(version) (((version) >> 24) & 0xFF)
+  #define MINORVEREXT(version) (((version) >> 16) & 0xFF)
+  #define PATCHVEREXT(version) (((version) >> 4) & 0x0FFF)
+  #define RELEASETYPEEXT(version) ((version) & 0x000F)
+
+  #define ORIGOTOC_VERSION MAKEVEREXT(0, 2, 0, ALPHA_RELEASE)
+  #define ORIGOTOC_VERSTRING "0.2.0 Alpha"
+  #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
+  // End version format declarations
+
+  /// Begin keyarray.h
+  /*
+   *  MIT License
+   * 
+   *  Key Array
+   *  Copyright (c) 2019-2021 Orlando Llanes
+   * 
+   *  Permission is hereby granted, free of charge, to any person obtaining a copy
+   *  of this software and associated documentation files (the "Software"), to deal
+   *  in the Software without restriction, including without limitation the rights
+   *  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   *  copies of the Software, and to permit persons to whom the Software is
+   *  furnished to do so, subject to the following conditions:
+   * 
+   *  The above copyright notice and this permission notice shall be included in all
+   *  copies or substantial portions of the Software.
+   * 
+   *  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   *  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   *  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   *  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   *  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   *  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   *  SOFTWARE.
+  */
+  
+  #include <stdlib.h>
+  #include <string.h>
+  
+  /*
+   * ================
+   *  Quick Reference
+   * ================
+   */
+  
+    /* Declare types
+    DECLARE_STRING_KEYARRAY_TYPES( typeName, dataType )
+    DECLARE_UINT_KEYARRAY_TYPES( typeName, dataType )
+  
+    Item type declarations, respectively:
+      typedef struct typeNameItem {
+        char* key;
+        dataType data;
+      } typeNameItem;
+  
+      typedef struct typeNameItem {
+        unsigned key;
+        dataType data;
+      } typeNameItem;
+  
+    List type declaration:
+      typedef struct typeName {
+        size_t reservedCount;
+        size_t itemCount;
+        typeNameItem* item;
+      } typeName;
+  
+    Declares the list as typeName. Declares the key and item types
+      internally. Declares the data field as the specified dataType.
+  
+    Declarations do not persist between macros. typeName must be
+      specified as listType in the function declarations.
+  
+    Direct access through list->item[index].data
+      or list->item[index].data.subfield
+    */
+  
+    /* Create list
+    DECLARE_STRING_KEYARRAY_CREATE( funcName, listType )
+    DECLARE_UINT_KEYARRAY_CREATE( funcName, listType )
+  
+    Declares list allocate function:
+      listType* funcName( size_t reserveCount )
+  
+    reserveCount can either be 0, or the number of items to pre-allocate.
+  
+    Return values:
+      NULL = allocate/etc failure.
+      Non-NULL = New list.
+    */
+  
+    /* Release list
+    DECLARE_STRING_KEYARRAY_FREE( funcName, listType, freeDataFunc )
+    DECLARE_UINT_KEYARRAY_FREE( funcName, listType, freeDataFunc )
+  
+    Declares list release function as funcName:
+      void funcName( listType** keyList )
+  
+    Internally calls developer defined data release function:
+      void freeDataFunc( dataType* data ) {
+      ...
+      }
+    */
+  
+    /* Insert data
+    DECLARE_STRING_KEYARRAY_INSERT( funcName, listType, dataType )
+    DECLARE_UINT_KEYARRAY_INSERT( funcName, listType, dataType )
+  
+    Declares data insert function as funcName, respectively:
+      int funcName( listType* keyList, char* key, dataType* data )
+      int funcName( listType* keyList, unsigned key, dataType* data )
+  
+    Inserts data, sorted by key. The developer must allocate dynamic
+      data, if applicable, prior to calling insert.
+  
+    Return values:
+      0 = allocation/etc failure, or key already exists.
+      Non-zero = Successful
+    */
+  
+    /* Remove data
+    DECLARE_STRING_KEYARRAY_REMOVE( funcName, listType, freeDataFunc )
+    DECLARE_UINT_KEYARRAY_REMOVE( funcName, listType, freeDataFunc )
+  
+    Declares data remove function as funcName, respectively:
+      void funcName( listType* keyList, char* key )
+      void funcName( listType* keyList, unsigned key )
+  
+    Removes the key and its associated data from the list.
+  
+    Internally calls developer defined data release function:
+      void freeDataFunc( dataType* data ) {
+      ...
+      }
+    */
+  
+    /* Data search
+    DECLARE_STRING_KEYARRAY_RETRIEVE( funcName, listType, dataType )
+    DECLARE_UINT_KEYARRAY_RETRIEVE( funcName, listType, dataType )
+  
+    Declares data search function as funcName, respectively:
+      int funcName( listType* keyList, char* key, dataType* destData )
+      int funcName( listType* keyList, unsigned key, dataType* destData )
+  
+    Searches for data by key, and copies its contents to destData.
+      destData must have the same dataType, to receive a copy.
+  
+    Return values:
+      0 = error in state, or key not found.
+      Non-zero = Successful
+    */
+  
+    /* Modify data
+    DECLARE_STRING_KEYARRAY_MODIFY( funcName, listType, dataType )
+    DECLARE_UINT_KEYARRAY_MODIFY( funcName, listType, dataType )
+  
+    Declares modify data function as funcName, respectively:
+      int funcName( listType* keyList, char* key, dataType* sourceData )
+      int funcName( listType* keyList, unsigned key, dataType* sourceData )
+  
+    Searches for data by key, and copies back sourceData. Assumes that
+      developer worked from original item data.
+  
+    sourceData must have the same dataType, to copy back to the list.
+  
+    Return values:
+      0 = error in state, or key not found.
+      Non-zero = Successful
+    */
+  
+    /* Find list index
+    DECLARE_STRING_KEYARRAY_FINDINDEX( funcName, listType )
+    DECLARE_UINT_KEYARRAY_FINDINDEX( funcName, listType )
+  
+    Declares key index search function as funcName, respectively:
+      size_t funcName( listType* keyList, char* key )
+      size_t funcName( listType* keyList, unsigned key )
+  
+    Searches list for key, and returns the corresponding array index.
+      Index value must be used immediately, or cached with care, as
+      inserting a new item can invalidate the index.
+  
+    Return values:
+      (-1) = error in state, or key not found.
+      Otherwise, the array index for key.
+    */
+  
+    /* Remove buffered space
+    DECLARE_STRING_KEYARRAY_RELEASEUNUSED( funcName, listType )
+    DECLARE_UINT_KEYARRAY_RELEASEUNUSED( funcName, listType )
+  
+    Declares a function as funcName, to remove buffered space
+      void funcName( listType* keyList )
+  
+    Assumes that items past itemCount are not in use.
+    */
+  
+    /* Copy list
+    DECLARE_STRING_KEYARRAY_COPY( funcName, listType, dataType,
+        copyDataFunc, freeDataFunc )
+    DECLARE_UINT_KEYARRAY_COPY( funcName, listType, dataType,
+        copyDataFunc, freeDataFunc )
+  
+    Declares a function as funcName, to copy a list:
+      listType* funcName( listType* sourceList )
+  
+    Internally calls developer defined data copy function,
+      which returns 0 on failure, or any non-zero value on success:
+      int copyDataFunc( dataType* dest, dataType* source ) {
+      ...
+      }
+  
+    Internally calls developer defined data release function:
+      void freeDataFunc( dataType* data ) {
+      ...
+      }
+  
+    Return values:
+      NULL = allocate/etc failure. freeDataFunc releases partial data.
+      Non-NULL = New copy of sourceList
+    */
+  
+  /*
+   * =================================
+   *  String Key Array implementation
+   * =================================
+   */
+  
+    #define DECLARE_STRING_KEYARRAY_TYPES(\
+        typeName, dataType )\
+    typedef struct typeName##Item {\
+      char* key;\
+      dataType data;\
+    } typeName##Item;\
+    \
+    typedef struct typeName {\
+      size_t reservedCount;\
+      size_t itemCount;\
+      typeName##Item* item;\
+    } typeName;
+  
+    #define DECLARE_STRING_KEYARRAY_CREATE( funcName, listType )\
+    listType* funcName( size_t reserveCount ) {\
+        listType* newKeyArray = NULL;\
+      \
+      newKeyArray = (listType*)calloc(1, sizeof(listType));\
+      if( newKeyArray == NULL ) {\
+        goto ReturnError;\
+      }\
+      \
+      if( reserveCount ) {\
+        newKeyArray->item =\
+          (listType##Item*)calloc(reserveCount, sizeof(listType##Item));\
+        if( newKeyArray->item == NULL ) {\
+          goto ReturnError;\
+        }\
+        \
+        newKeyArray->reservedCount = reserveCount;\
+      }\
+      return newKeyArray;\
+    \
+    ReturnError:\
+      if( newKeyArray ) {\
+        if( newKeyArray->item ) {\
+          free( newKeyArray->item );\
+          newKeyArray->item = NULL;\
+        }\
+        free( newKeyArray );\
+        newKeyArray = NULL;\
+      }\
+      return NULL;\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_FREE( funcName, listType, freeDataFunc )\
+    void funcName( listType** keyList ) {\
+      size_t index;\
+      size_t itemCount;\
+      \
+      if( keyList && (*keyList) ) {\
+        itemCount = (*keyList)->itemCount;\
+        for( index = 0; index < itemCount; index++ ) {\
+          if( (*keyList)->item[index].key ) {\
+            free( (*keyList)->item[index].key );\
+          }\
+          freeDataFunc( &((*keyList)->item[index].data) );\
+        }\
+        \
+        free( (*keyList) );\
+        (*keyList) = NULL;\
+      }\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_INSERT( funcName, listType, dataType )\
+    int funcName( listType* keyList, char* key, dataType* data ) {\
+      unsigned leftIndex;\
+      unsigned insertIndex;\
+      unsigned rightIndex;\
+      int result;\
+      char* newStrKey;\
+      size_t keyLen;\
+      unsigned prevCount;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && key && data) ) {\
+        return 0;\
+      }\
+      \
+      keyLen = strlen(key);\
+      if( keyLen == 0 ) {\
+        return 0;\
+      }\
+      \
+      /* Grow list, if necessary */\
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      if( itemCount == reservedCount ) {\
+        prevCount = reservedCount;\
+        reservedCount += 8;\
+        if( prevCount > reservedCount ) {\
+          return 0;\
+        }\
+        \
+        item = realloc(item, reservedCount * sizeof(listType##Item));\
+        if( item == NULL ) {\
+          return 0;\
+        }\
+        keyList->reservedCount = reservedCount;\
+        keyList->item = item;\
+      }\
+      \
+      /* Search for insert position */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      insertIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        result = strcmp(item[insertIndex].key, key);\
+        \
+        if( result == 0 ) {\
+          return 0;\
+        }\
+        \
+        if( result > 0 ) {\
+          rightIndex = insertIndex;\
+        } else {\
+          leftIndex = insertIndex + 1;\
+        }\
+        \
+        insertIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      /* Attempt to allocate key string before going further */\
+      newStrKey = malloc(keyLen + 1);\
+      if( newStrKey == NULL ) {\
+        return 0;\
+      }\
+      strcpy( newStrKey, key );\
+      \
+      /* Move data past insertion point up, if necessary */\
+      memmove( &(item[insertIndex + 1]), &(item[insertIndex]),\
+          (itemCount - insertIndex) * sizeof(listType##Item) );\
+      \
+      /* Insert item */\
+      item[insertIndex].key = newStrKey;\
+      if( data ) {\
+        memcpy( &(item[insertIndex].data), data, sizeof(dataType) );\
+      }\
+      \
+      keyList->itemCount++;\
+      \
+      return 1;\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_REMOVE( funcName, listType, freeDataFunc )\
+    void funcName( listType* keyList, char* key ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned removeIndex;\
+      int result;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item && key && (*key)) ) {\
+        return;\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for insert position */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      removeIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        result = strcmp(item[removeIndex].key, key);\
+        \
+        if( result == 0 ) {\
+          freeDataFunc( &(item[removeIndex].data) );\
+          if( item[removeIndex].key ) {\
+            free( item[removeIndex].key );\
+            item[removeIndex].key = NULL;\
+          }\
+          \
+          if( itemCount ) {\
+            itemCount--;\
+            \
+            memcpy( &(item[removeIndex]), &(item[removeIndex + 1]),\
+              (itemCount - removeIndex) * sizeof(listType##Item) );\
+            \
+            keyList->itemCount = itemCount;\
+          }\
+          \
+          memset( &(item[itemCount]), 0, sizeof(listType##Item) );\
+          \
+          return;\
+        }\
+        \
+        if( result > 0 ) {\
+          rightIndex = removeIndex;\
+        } else {\
+          leftIndex = removeIndex + 1;\
+        }\
+        \
+        removeIndex = (leftIndex + rightIndex) / 2;\
+      }\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_RETRIEVE( funcName, listType, dataType )\
+    int funcName( listType* keyList, char* key, dataType* destData ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned retrieveIndex;\
+      int result;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item && key && (*key) && destData) ) {\
+        return 0;\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for item */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      retrieveIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        result = strcmp(item[retrieveIndex].key, key);\
+        \
+        if( result == 0 ) {\
+          memcpy( destData, &(item[retrieveIndex].data), sizeof(dataType) );\
+          return 1;\
+        }\
+        \
+        if( result > 0 ) {\
+          rightIndex = retrieveIndex;\
+        } else {\
+          leftIndex = retrieveIndex + 1;\
+        }\
+        \
+        retrieveIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      return 0;\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_MODIFY( funcName, listType, dataType )\
+    int funcName( listType* keyList, char* key, dataType* sourceData ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned modifyIndex;\
+      int result;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item && key && (*key) && sourceData) ) {\
+        return 0;\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for item */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      modifyIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        result = strcmp(item[modifyIndex].key, key);\
+        \
+        if( result == 0 ) {\
+          memcpy( &(item[modifyIndex].data), sourceData, sizeof(dataType) );\
+          return 1;\
+        }\
+        \
+        if( result > 0 ) {\
+          rightIndex = modifyIndex;\
+        } else {\
+          leftIndex = modifyIndex + 1;\
+        }\
+        \
+        modifyIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      return 0;\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_FINDINDEX( funcName, listType )\
+    int funcName( listType* keyList, char* key ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned searchIndex;\
+      int result;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item && key && (*key)) ) {\
+        return (-1);\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for item */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      searchIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        result = strcmp(item[searchIndex].key, key);\
+        \
+        if( result == 0 ) {\
+          return searchIndex;\
+        }\
+        \
+        if( result > 0 ) {\
+          rightIndex = searchIndex;\
+        } else {\
+          leftIndex = searchIndex + 1;\
+        }\
+        \
+        searchIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      return (-1);\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_RELEASEUNUSED( funcName, listType )\
+    void funcName( listType* keyList ) {\
+      listType##Item* item;\
+      \
+      if( keyList == NULL ) {\
+        return;\
+      }\
+      \
+      if( keyList->item && keyList->itemCount ) {\
+        /* Resize to remove reserved space*/\
+        item = realloc(keyList->item,\
+          keyList->itemCount * sizeof(listType##Item));\
+        if( item ) {\
+          keyList->item = item;\
+          keyList->reservedCount = keyList->itemCount;\
+        }\
+      } else {\
+        /* Deallocate */\
+        keyList->reservedCount = 0;\
+        keyList->itemCount = 0;\
+        if( keyList->item ) {\
+          free( keyList->item );\
+          keyList->item = NULL;\
+        }\
+      }\
+    }
+  
+    #define DECLARE_STRING_KEYARRAY_COPY( funcName, listType, dataType,\
+        copyDataFunc, freeDataFunc )\
+    listType* funcName( listType* sourceList ) {\
+      listType* newCopy = NULL;\
+      listType##Item* sourceItem = NULL;\
+      size_t reservedCount = 0;\
+      size_t itemCount = 0;\
+      char* keyCopy;\
+      size_t keyLen;\
+      size_t index;\
+      \
+      if( sourceList == NULL ) {\
+        return NULL;\
+      }\
+      \
+      /* Attempt to allocate list object */\
+      newCopy = calloc(1, sizeof(listType));\
+      if( newCopy == NULL ) {\
+        goto ReturnError;\
+      }\
+      \
+      /* Initialize important variables */\
+      reservedCount = sourceList->reservedCount;\
+      itemCount = sourceList->itemCount;\
+      sourceItem = sourceList->item;\
+      \
+      /* A list with no items is valid */\
+      if( !(reservedCount && itemCount && sourceItem) ) {\
+        return newCopy;\
+      }\
+      \
+      /* Copy data, then copy the string keys */\
+      newCopy->item = malloc(reservedCount * sizeof(listType##Item));\
+      if( newCopy->item == NULL ) {\
+        goto ReturnError;\
+      }\
+      \
+      for( index = 0; index < itemCount; index++ ) {\
+        /* Direct copy by default, allowing copy function to be empty */\
+        newCopy->item[index].data = sourceItem[index].data;\
+        if( copyDataFunc(&(newCopy->item[index].data),\
+            &(sourceItem[index].data)) == 0 ) {\
+          goto ReturnError;\
+        }\
+        \
+        keyLen = strlen(sourceItem[index].key);\
+        keyCopy = malloc(keyLen + 1);\
+        if( keyCopy == NULL ) {\
+          goto ReturnError;\
+        }\
+        strcpy( keyCopy, sourceItem[index].key );\
+        \
+        newCopy->item[index].key = keyCopy;\
+      }\
+      \
+      newCopy->reservedCount = reservedCount;\
+      newCopy->itemCount = itemCount;\
+      \
+      return newCopy;\
+      \
+    ReturnError:\
+      if( newCopy == NULL ) {\
+        return NULL;\
+      }\
+      \
+      if( newCopy->item ) {\
+        for( index = 0; index < itemCount; index++ ) {\
+          freeDataFunc( &(newCopy->item[index].data) );\
+          \
+          keyCopy = newCopy->item[index].key;\
+          if( keyCopy ) {\
+            free( keyCopy );\
+            keyCopy = NULL;\
+          }\
+        }\
+      }\
+      \
+      free( newCopy );\
+      newCopy = NULL;\
+      \
+      return NULL;\
+    }
+  
+  /*
+   * ===================================
+   *  Unsigned Key Array implementation
+   * ===================================
+   */
+  
+    #define DECLARE_UINT_KEYARRAY_TYPES( typeName, dataType )\
+    typedef struct typeName##Item {\
+      unsigned key;\
+      dataType data;\
+    } typeName##Item;\
+    \
+    typedef struct typeName {\
+      size_t reservedCount;\
+      size_t itemCount;\
+      typeName##Item* item;\
+    } typeName;
+  
+    #define DECLARE_UINT_KEYARRAY_CREATE( funcName, listType )\
+    listType* funcName( size_t reserveCount ) {\
+      listType* newKeyArray = NULL;\
+      \
+      newKeyArray = (listType*)calloc(1, sizeof(listType));\
+      if( newKeyArray == NULL ) {\
+        goto ReturnError;\
+      }\
+      \
+      if( reserveCount ) {\
+        newKeyArray->item =\
+          (listType##Item*)calloc(reserveCount, sizeof(listType##Item));\
+        if( newKeyArray->item == NULL ) {\
+          goto ReturnError;\
+        }\
+        \
+        newKeyArray->reservedCount = reserveCount;\
+      }\
+      return newKeyArray;\
+      \
+    ReturnError:\
+      if( newKeyArray ) {\
+        if( newKeyArray->item ) {\
+          free( newKeyArray->item );\
+          newKeyArray->item = NULL;\
+        }\
+        free( newKeyArray );\
+        newKeyArray = NULL;\
+      }\
+      return NULL;\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_FREE( funcName, listType, freeDataFunc )\
+    void funcName( listType** keyList ) {\
+      size_t index;\
+      size_t itemCount;\
+      \
+      if( keyList && (*keyList) ) {\
+        itemCount = (*keyList)->itemCount;\
+        for( index = 0; index < itemCount; index++ ) {\
+          freeDataFunc( &((*keyList)->item[index].data) );\
+        }\
+        \
+        free( (*keyList) );\
+        (*keyList) = NULL;\
+      }\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_INSERT( funcName, listType, dataType )\
+    int funcName( listType* keyList,\
+        unsigned key, dataType* data ) {\
+      unsigned leftIndex;\
+      unsigned insertIndex;\
+      unsigned rightIndex;\
+      unsigned prevCount;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && data) ) {\
+        return 0;\
+      }\
+      \
+      /* Grow list, if necessary */\
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      if( itemCount == reservedCount ) {\
+        prevCount = reservedCount;\
+        reservedCount += 8;\
+        if( prevCount > reservedCount ) {\
+          return 0;\
+        }\
+        \
+        item = (listType##Item*)realloc(item, reservedCount * sizeof(listType##Item));\
+        if( item == NULL ) {\
+          return 0;\
+        }\
+        keyList->reservedCount = reservedCount;\
+        keyList->item = item;\
+      }\
+      \
+      /* Search for insert position */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      insertIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        if( item[insertIndex].key == key ) {\
+          return 0;\
+        }\
+        \
+        if( item[insertIndex].key > key ) {\
+          rightIndex = insertIndex;\
+        } else {\
+          leftIndex = insertIndex + 1;\
+        }\
+        \
+        insertIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      /* Move data past insertion point up, if necessary */\
+      memmove( &(item[insertIndex + 1]), &(item[insertIndex]),\
+          (itemCount - insertIndex) * sizeof(listType##Item) );\
+      \
+      /* Insert item */\
+      item[insertIndex].key = key;\
+      if( data ) {\
+        memcpy( &(item[insertIndex].data), data, sizeof(dataType) );\
+      }\
+      \
+      keyList->itemCount++;\
+      \
+      return 1;\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_REMOVE( funcName, listType, freeDataFunc )\
+    void funcName( listType* keyList, unsigned key ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned removeIndex;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item) ) {\
+        return;\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for insert position */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      removeIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        if( item[removeIndex].key == key ) {\
+          freeDataFunc( &(item[removeIndex].data) );\
+          \
+          if( itemCount ) {\
+            itemCount--;\
+            \
+            memcpy( &(item[removeIndex]), &(item[removeIndex + 1]),\
+              (itemCount - removeIndex) * sizeof(listType##Item) );\
+            \
+            keyList->itemCount = itemCount;\
+          }\
+          \
+          memset( &(item[itemCount]), 0, sizeof(listType##Item) );\
+          \
+          return;\
+        }\
+        \
+        if( item[removeIndex].key > key ) {\
+          rightIndex = removeIndex;\
+        } else {\
+          leftIndex = removeIndex + 1;\
+        }\
+        \
+        removeIndex = (leftIndex + rightIndex) / 2;\
+      }\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_RETRIEVE( funcName, listType, dataType )\
+    int funcName( listType* keyList, unsigned key,\
+        dataType* destData ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned retrieveIndex;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item && destData) ) {\
+        return 0;\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for insert position */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      retrieveIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        if( item[retrieveIndex].key == key ) {\
+          memcpy( destData, &(item[retrieveIndex].data), sizeof(dataType) );\
+          return 1;\
+        }\
+        \
+        if( item[retrieveIndex].key > key ) {\
+          rightIndex = retrieveIndex;\
+        } else {\
+          leftIndex = retrieveIndex + 1;\
+        }\
+        \
+        retrieveIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      return 0;\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_MODIFY( funcName, listType, dataType )\
+    int funcName( listType* keyList, unsigned key,\
+        dataType* sourceData ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned modifyIndex;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item && sourceData) ) {\
+        return 0;\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for insert position */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      modifyIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        if( item[modifyIndex].key == key ) {\
+          memcpy( &(item[modifyIndex].data), sourceData, sizeof(dataType) );\
+          return 1;\
+        }\
+        \
+        if( item[modifyIndex].key > key ) {\
+          rightIndex = modifyIndex;\
+        } else {\
+          leftIndex = modifyIndex + 1;\
+        }\
+        \
+        modifyIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      return 0;\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_FINDINDEX( funcName, listType )\
+    int funcName( listType* keyList, unsigned key ) {\
+      unsigned leftIndex;\
+      unsigned rightIndex;\
+      unsigned searchIndex;\
+      unsigned reservedCount;\
+      unsigned itemCount;\
+      listType##Item* item;\
+      \
+      if( !(keyList && keyList->item) ) {\
+        return (-1);\
+      }\
+      \
+      reservedCount = keyList->reservedCount;\
+      itemCount = keyList->itemCount;\
+      item = keyList->item;\
+      \
+      /* Search for insert position */\
+      leftIndex = 0;\
+      rightIndex = itemCount;\
+      searchIndex = itemCount / 2;\
+      \
+      while( leftIndex < rightIndex ) {\
+        if( item[searchIndex].key == key ) {\
+          return searchIndex;\
+        }\
+        \
+        if( item[searchIndex].key > key ) {\
+          rightIndex = searchIndex;\
+        } else {\
+          leftIndex = searchIndex + 1;\
+        }\
+        \
+        searchIndex = (leftIndex + rightIndex) / 2;\
+      }\
+      \
+      return (-1);\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_RELEASEUNUSED( funcName, listType )\
+    void funcName( listType* keyList ) {\
+      listType##Item* item;\
+      \
+      if( keyList == NULL ) {\
+        return;\
+      }\
+      \
+      if( keyList->item && keyList->itemCount ) {\
+        /* Resize to remove reserved space */\
+        item = realloc(keyList->item,\
+          keyList->itemCount * sizeof(listType##Item));\
+        if( item ) {\
+          keyList->item = item;\
+          keyList->reservedCount = keyList->itemCount;\
+        }\
+      } else {\
+        /* Deallocate */\
+        keyList->reservedCount = 0;\
+        keyList->itemCount = 0;\
+        if( keyList->item ) {\
+          free( keyList->item );\
+          keyList->item = NULL;\
+        }\
+      }\
+    }
+  
+    #define DECLARE_UINT_KEYARRAY_COPY( funcName, listType, dataType,\
+        copyDataFunc, freeDataFunc )\
+    listType* funcName( listType* sourceList ) {\
+      listType* newCopy = NULL;\
+      listType##Item* sourceItem = NULL;\
+      size_t reservedCount = 0;\
+      size_t itemCount = 0;\
+      size_t index;\
+      \
+      if( sourceList == NULL ) {\
+        return NULL;\
+      }\
+      \
+      /* Attempt to allocate list object */\
+      newCopy = calloc(1, sizeof(listType));\
+      if( newCopy == NULL ) {\
+        goto ReturnError;\
+      }\
+      \
+      /* Initialize important variables */\
+      reservedCount = sourceList->reservedCount;\
+      itemCount = sourceList->itemCount;\
+      sourceItem = sourceList->item;\
+      \
+      /* A list with no items is valid */\
+      if( !(reservedCount && itemCount && sourceItem) ) {\
+        return newCopy;\
+      }\
+      \
+      /* Copy data, then copy the Uint keys */\
+      newCopy->item = malloc(reservedCount * sizeof(listType##Item));\
+      if( newCopy->item == NULL ) {\
+        goto ReturnError;\
+      }\
+      \
+      for( index = 0; index < itemCount; index++ ) {\
+       /* Direct copy by default, allowing copy function to be empty */\
+        newCopy->item[index].data = sourceItem[index].data;\
+        if( copyDataFunc(&(newCopy->item[index].data),\
+            &(sourceItem[index].data)) == 0 ) {\
+          goto ReturnError;\
+        }\
+        \
+        newCopy->item[index].key = sourceItem[index].key;\
+      }\
+      \
+      newCopy->reservedCount = reservedCount;\
+      newCopy->itemCount = itemCount;\
+      \
+      return newCopy;\
+      \
+    ReturnError:\
+      if( newCopy == NULL ) {\
+        return NULL;\
+      }\
+      \
+      if( newCopy->item ) {\
+        for( index = 0; index < itemCount; index++ ) {\
+          freeDataFunc( &(newCopy->item[index].data) );\
+        }\
+      }\
+      \
+      free( newCopy );\
+      newCopy = NULL;\
+      \
+      return NULL;\
+    }
+  // End keyarray.h
+
+  /// Begin general declarations
+  #define IDENT_MAXLEN 32
+  #define IDENT_MAXINDEX (IDENT_MAXLEN - 1)
+  #define IDENTPAIR_MAXLEN 64
+  #define IDENTPAIR_MAXINDEX (IDENTPAIR_MAXLEN - 1)
+
+  #define TOKENSTR_MAXLEN 2048
+  #define TOKENSTR_MAXINDEX (TOKENSTR_MAXLEN - 1)
+  // End general declarations
+
+  /// Begin enum field declarations
+  typedef struct EnumField {
+    char name[IDENT_MAXLEN];
+    unsigned value;
+  } EnumField;
+
+  DECLARE_STRING_KEYARRAY_TYPES( EnumFieldTable, EnumField )
+
+  void FreeEnumField( EnumField* data );
+  int CopyEnumField( EnumField* dest, EnumField* source );
+  // End enum field declarations
+
+  /// Begin symbol table declarations
+  typedef struct TypeSpec {
+    int pointerType;
+    unsigned simpleType;
+    char simpleTypeName[IDENTPAIR_MAXLEN];
+    unsigned dimCount;
+  } TypeSpec;
+
+  typedef struct Symbol {
+    int tokenCode;
+  } Symbol;
+
+  DECLARE_STRING_KEYARRAY_TYPES( SymTable, Symbol )
+  // End symbol table declarations
+
+  /// Begin OrigoToC declarations
+  typedef struct OrigoOptions {
+    char* sourceFileName;
+    char* cFileName;
+    char* hFileName;
+    char* binaryFileName;
+  } OrigoOptions;
+  // End OrigoToC declarations
+
+  /// Begin parse state auxil declarations
+  typedef struct SourceFile {
+    FILE* handle;
+  } SourceFile;
+
+  typedef struct ParseState {
+    SourceFile source;
+  } ParseState;
+  // End parse state auxil declarations
+}
+
+%auxil "ParseState* "
+
+%source {
+  int argc = 0;
+  char** argv = NULL;
+
+  /// Begin strnlen copied from packcc.c source file, as a workaround for TinyCC
+  #ifdef __TINYC__
+  static size_t strnlen(const char *str, size_t maxlen) {
+    size_t i;
+    for( i = 0; (i < maxlen) && str[i]; i++ ) {
+    };
+    return i;
+  }
+  #endif
+  // End strnlen
+
+  /*
+  /// Begin PCC_DEBUG override
+  static const char *dbg_str[] = { "Evaluating rule", "Matched rule", "Abandoning rule" };
+  #define PCC_DEBUG(event, rule, level, pos, buffer, length) \
+    fprintf(stderr, "%*s%s %s @%d [%.*s]\n", level * 2, "", dbg_str[event], rule, pos, length, buffer);
+  // End PCC_DEBUG override
+  */
+
+  /// Begin PCC_GETCHAR override
+  int ReadChar( ParseState* auxil ) {
+    if( auxil && auxil->source.handle ) {
+      return fgetc(auxil->source.handle);
+    }
+    return EOF;
+  }
+  #define PCC_GETCHAR(auxil) ReadChar(auxil);
+  // End PCC_GETCHAR override
+
+  /// Begin warning/error functions
+  void Error( unsigned ofCode, const char* withMessage ) {
+    printf( "Error[%u]: %s\n", ofCode, withMessage );
+    exit(1);
+  }
+
+  void SyntaxError( unsigned onLine, unsigned onColumn,
+    const char* prefix, const char* message ) {
+
+    printf( "%s[L%u,C%u]: %s\n", prefix, onLine, onColumn, message );
+    exit(1);
+  }
+  // End warning/error functions
+
+  /// Begin helper functions
+  void FreePtr( void** ptrVar ) {
+    if( ptrVar ) {
+      if( *ptrVar ) {
+        free( *ptrVar );
+        *ptrVar = NULL;
+      }
+    }
+  }
+
+  void CloseFile( FILE** fileVar ) {
+    if( fileVar ) {
+      if( *fileVar ) {
+        fclose( *fileVar );
+        *fileVar = NULL;
+      }
+    }
+  }
+  // End helper functions
+
+  /// Begin path functions
+  int SplitPath( const char* fromFullPath, char** toDir,
+    char** toBaseName, char** toExt ) {
+
+    const char* pathCh;
+    const char* pathDir;
+    const char* pathBaseName;
+    const char* pathExt;
+    size_t curLen = 0;
+    size_t dirLen = 0;
+    size_t basenameLen = 0;
+    size_t extLen = 0;
+    char* newDir = NULL;
+    char* newBaseName = NULL;
+    char* newExt = NULL;
+
+    // Validate parameters
+    if( (fromFullPath == NULL) || (*fromFullPath == '\0') ) { return 1; }
+    if( (toDir == NULL) || *toDir ) { return 2; }
+    if( (toBaseName == NULL) || *toBaseName ) { return 3; }
+    if( (toExt == NULL) || *toExt ) { return 4; }
+
+    pathDir = fromFullPath;
+    pathBaseName = fromFullPath;
+    pathExt = fromFullPath;
+
+    // Find last \ or / in file path
+    pathCh = pathDir;
+    curLen = 0;
+    while( *pathCh )  {
+      if( *pathCh == '\\' || *pathCh == '/' ) {
+        pathBaseName = pathCh + 1;
+        dirLen = curLen + 1;
+      }
+      pathCh++;
+      curLen++;
+    }
+
+    // Find the first . after the last \ or /
+    pathCh = pathBaseName;
+
+    if( (*pathCh == '.') ) {
+      // Special case .file as base name, when [dir\ or dir/].file[.ext]
+      pathCh++;
+      pathExt = pathCh;
+      basenameLen++;
+    }
+
+    while( *pathCh )  {
+      if( *pathCh == '.' ) {
+        pathExt = pathCh;
+        break;
+      }
+      pathCh++;
+      basenameLen++;
+    }
+
+    // Get the length of the file extension
+    pathCh = pathExt;
+    extLen = 0;
+    while( *pathCh )  {
+      if( *pathCh == '.' ) {
+        break;
+      }
+      pathCh++;
+      pathExt++;
+    }
+    while( *pathCh ) {
+      pathCh++;
+      extLen++;
+    }
+
+    if( (dirLen | basenameLen | extLen) == 0 ) { return 5; }
+
+    if( dirLen ) {
+      newDir = malloc((dirLen + 1) * sizeof(char));
+      if( newDir == NULL ) { goto ExitError; }
+      memcpy( newDir, pathDir, dirLen * sizeof(char) );
+      newDir[dirLen] = '\0';
+      *toDir = newDir;
+    }
+
+    if( basenameLen ) {
+      newBaseName = malloc((basenameLen + 1) * sizeof(char));
+      if( newBaseName == NULL ) { goto ExitError; }
+      memcpy( newBaseName, pathBaseName, basenameLen * sizeof(char) );
+      newBaseName[basenameLen] = '\0';
+      *toBaseName = newBaseName;
+    }
+
+    if( extLen ) {
+      newExt = malloc((extLen + 1) * sizeof(char));
+      if( newExt == NULL ) { goto ExitError; }
+      memcpy( newExt, pathExt, extLen * sizeof(char) );
+      newExt[extLen] = '\0';
+      *toExt = newExt;
+    }
+
+    return 0;
+
+  ExitError:
+    FreePtr( &newDir );
+    FreePtr( &newBaseName );
+    FreePtr( &newExt );
+    return 6;
+  }
+
+  int JoinPath( const char* fromDir, const char* fromBaseName,
+    const char* fromExt, char** toFullPath ) {
+
+    char* newPath = NULL;
+    size_t totalLen;
+    const char* tmpCh;
+    char pathSeparator = '\0';
+    char extDot = '\0';
+
+    // Validate parameters
+    if( (toFullPath == NULL) || *toFullPath ) { return 4; }
+    if( (fromDir == NULL) && (fromBaseName == NULL)
+      && (fromExt == NULL) ) { return 5; }
+
+    // Calculate the total string length
+    totalLen = 0;
+    if( fromDir ) {
+      totalLen = strlen(fromDir);
+      if( totalLen ) {
+        // Check for trailing path separator
+        if( (fromDir[totalLen - 1] != '\\') && (fromDir[totalLen - 1] != '/') ) {
+          totalLen++;
+          // If path separator isn't at end, detect which slash to use
+          tmpCh = fromDir;
+          pathSeparator = '\\'; // default to '\'
+          while( *tmpCh ) {
+            if( (*tmpCh == '\\') || (*tmpCh == '/') ) {
+              pathSeparator = *tmpCh;
+              break;
+            }
+            tmpCh++;
+          }
+        }
+      }
+    }
+
+    if( fromBaseName ) {
+      totalLen += strlen(fromBaseName);
+      // Skip slash at start of BaseName
+      if( (*fromBaseName == '\\') || (*fromBaseName == '/') ) {
+        fromBaseName++;
+        totalLen--;
+      }
+      // If a slash remains, the base name is [probably?] invalid
+      if( (*fromBaseName == '\\') || (*fromBaseName == '/') ) { return 6; }
+    }
+
+    if( fromExt ) {
+      totalLen += strlen(fromExt);
+      // Add a dot if missing from file extension
+      if( *fromExt != '.' ) {
+        extDot = '.';
+        totalLen++;
+      }
+    }
+
+    // Allocate string buffer
+    newPath = malloc((totalLen + 1) * sizeof(char));
+    if( newPath == NULL ) { return 7; }
+    *newPath = '\0';
+
+    // Copy in each parameter
+    if( fromDir ) {
+      strcat( newPath, fromDir );
+      if( pathSeparator ) {
+        strncat( newPath, &pathSeparator, 1 );
+      }
+    }
+
+    if( fromBaseName ) {
+      strcat( newPath, fromBaseName );
+    }
+
+    if( fromExt ) {
+      if( extDot ) {
+        strncat( newPath, &extDot, 1 );
+      }
+      strcat( newPath, fromExt );
+    }
+
+    *toFullPath = newPath;
+    return 0;
+  }
+  // End path functions
+
+  /// Begin enum field table
+  EnumFieldTable* enumFieldTable = NULL;
+
+  void FreeEnumField( EnumField* data ) {
+  }
+
+  int CopyEnumField( EnumField* dest, EnumField* source ) {
+    return 0;
+  }
+
+  DECLARE_STRING_KEYARRAY_CREATE( CreateEnumFieldTable, EnumFieldTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeEnumFieldTable, EnumFieldTable, FreeEnumField )
+
+  DECLARE_STRING_KEYARRAY_INSERT( InsertEnumField, EnumFieldTable, EnumField )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveEnumField, EnumFieldTable, FreeEnumField )
+
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupEnumField, EnumFieldTable, EnumField )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifyEnumField, EnumFieldTable, EnumField )
+
+  DECLARE_STRING_KEYARRAY_FINDINDEX( EnumFieldIndex, EnumFieldTable )
+
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( ReleaseUnusedEnumFields, EnumFieldTable )
+
+  DECLARE_STRING_KEYARRAY_COPY( CopyEnumFieldTable, EnumFieldTable, EnumField,
+    CopyEnumField, FreeEnumField )
+  // End
+
+  /// Begin symbol table declarations
+  void FreeSymbol( Symbol* data ) {
+  }
+
+  int CopySymbol( Symbol* dest, Symbol* source ) {
+    return 0;
+  }
+
+  DECLARE_STRING_KEYARRAY_CREATE( CreateSymTable, SymTable )
+  DECLARE_STRING_KEYARRAY_FREE( FreeSymTable, SymTable, FreeSymbol )
+
+  DECLARE_STRING_KEYARRAY_INSERT( InsertSymbol, SymTable, Symbol )
+  DECLARE_STRING_KEYARRAY_REMOVE( RemoveSymbol, SymTable, FreeSymbol )
+
+  DECLARE_STRING_KEYARRAY_RETRIEVE( LookupSymbol, SymTable, Symbol )
+  DECLARE_STRING_KEYARRAY_MODIFY( ModifySymbol, SymTable, Symbol )
+
+  DECLARE_STRING_KEYARRAY_FINDINDEX( SymbolIndex, SymTable )
+
+  DECLARE_STRING_KEYARRAY_RELEASEUNUSED( ReleaseUnusedSymbols, SymTable )
+
+  DECLARE_STRING_KEYARRAY_COPY( CopySymTable, SymTable, Symbol,
+    CopySymbol, FreeSymbol )
+  // End symbol table declarations
+
+  /// Begin global variables
+  OrigoOptions options = {};
+
+  char qualifier[IDENT_MAXLEN];
+  EnumFieldTable* enumTable;
+  unsigned enumFieldValue;
+
+  SymTable* symTable = NULL;
+  SymTable* localTable = NULL;
+  // End global variables
+}
+
+program <-
+  _ program_header _ (_ declaration)* run_block? _ (_ declaration)* _ EOF {
+  }
+
+## Begin program IDENT
+program_header <-
+  'program' _ <IDENT> {
+    printf( "PROGRAM[%s]\n", $1 );
+  }
+# End program IDENT
+
+## Begin top level declaration
+declaration <-
+  _ enum_declaration _
+/ _ union_declaration _
+/ _ struct_declaration _
+/ _ type_declaration _
+/ _ const_declaration _
+/ _ global_var_block _
+/ _ func_prototype_declaration _
+/ _ import_func_declaration _
+/ _ func_block _
+/ _ object_declaration _
+/ _ object_ctor_block _
+/ _ object_dtor_block _
+/ _ interface_block _
+/ _ method_block _
+/ _ unary_block _
+/ _ operator_block _
+# End top level declaration
+
+## Begin enum ... end
+enum_declaration <-
+  enum_header (_ enum_field_declaration)* _ 'end' {
+  }
+
+enum_header <-
+  'enum' _ <IDENT> {
+    enumFieldValue = 0;
+    strncpy( qualifier, $1, IDENT_MAXINDEX );
+    printf( "ENUM[%s]\n", qualifier );
+  }
+
+enum_field_declaration <-
+  &'end'
+/ <IDENT> _ '=' _ <CONSTEXPR> _ ',' _ {
+    printf( "ENUMFIELD[%s.%s = %s], ", qualifier, $1, $2 );
+  }
+/ <IDENT> _ '=' _ <CONSTEXPR> {
+    printf( "ENUMFIELD[%s.%s = %s]\n", qualifier, $3, $4 );
+  }
+/ <IDENT> _ ',' _ {
+    printf( "ENUMFIELD[%s.%s], ", qualifier, $5 );
+  }
+/ <IDENT> _ {
+    printf( "ENUMFIELD[%s.%s]\n", qualifier, $6 );
+  }
+# End enum ... end
+
+## Begin union ... end
+union_declaration <-
+  union_header (_ union_field_declaration)* _ 'end' {
+  }
+
+union_header <-
+  'union' _ <IDENT> _ {
+    strncpy( qualifier, $1, IDENT_MAXINDEX );
+    printf( "UNION[%s]\n", $1 );
+  }
+
+# TYPESPEC IDENT
+union_field_declaration <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ {
+    printf( "UNIONFIELD[%s %s.%s]\n", $1, qualifier, $2 );
+  }
+# End union ... end
+
+## Begin struct ... end
+struct_declaration <-
+  struct_header (_ struct_field_declaration)* _ 'end' {
+  }
+
+struct_header <-
+  'struct' _ <IDENT> _ {
+    strncpy( qualifier, $1, IDENT_MAXINDEX );
+    printf( "STRUCT[%s]\n", $1 );
+  }
+
+# TYPESPEC IDENT
+struct_field_declaration <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ {
+    printf( "STRUCTFIELD[%s %s.%s]\n", $1, qualifier, $2 );
+  }
+# End struct ... end
+
+## Begin type declaration
+type_declaration <-
+  'type' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> {
+    printf( "TYPE[%s %s = %s]\n", $1, $2, $3 );
+  }
+/ 'type' _ <TYPESPEC> _ <IDENT> _ {
+    printf( "TYPE[%s %s]\n", $4, $5 );
+  }
+# End type declaration
+
+## Begin const declaration
+const_declaration <-
+  _ 'const' _ <TYPESPEC> _ <IDENT> _ '=' _ <CONSTEXPR> _ {
+    printf( "CONST[%s %s = %s]\n", $1, $2, $3 );
+  }
+# End const declaration
+
+## Begin global var declaration
+global_var_block <-
+  global_var_begin (_ global_var_declaration)* _ 'end' {
+  }
+
+global_var_begin <-
+  'var' _ {
+  }
+
+global_var_declaration <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ '=' _ <EXPR> _ {
+    printf( "GLOBALVAR[%s %s = %s]\n", $1, $2, $3 );
+  }
+/ <TYPESPEC> _ <IDENT> _ {
+    printf( "GLOBALVAR[%s %s]\n", $4, $5 );
+  }
+# End global var declaration
+
+## Begin local var declaration
+local_var_block <-
+  local_var_begin (_ local_var_declaration)* _ 'end' {
+  }
+
+local_var_begin <-
+  'var' _ {
+  }
+
+local_var_declaration <-
+  &'end'
+/ <TYPESPEC> _ <IDENT> _ '=' _ <EXPR> {
+    printf( "LOCALVAR[%s %s = %s]\n", $1, $2, $3 );
+  }
+/ <TYPESPEC> _ <IDENT> {
+    printf( "LOCALVAR[%s %s]\n", $4, $5 );
+  }
+# End local var declaration
+
+## Begin parameter declarations
+parameter_declarations <-
+  _ parameter_declaration (_ ',' _ parameter_declaration)* _ {
+  }
+
+parameter_declaration <- <TYPESPEC> _ <IDENT> _
+# End parameter declarations
+
+## Begin funcdecl
+func_prototype_declaration <-
+  func_prototype_begin _ func_prototype_specs? _
+    func_prototype_name _ func_prototype_parameters _ {
+    printf( "\n" );
+  }
+/ func_prototype_begin _ func_prototype_specs? _
+    func_prototype_name _ '(' _ ')' _ {
+    printf( "[()]\n" );
+  }
+
+func_prototype_begin <-
+  'funcdecl' _ {
+    printf( "FUNCDECL" );
+  }
+
+func_prototype_specs <-
+  <CALLSPEC> _ <TYPESPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <CALLSPEC> _ {
+    printf( "[%s]", $3 );
+  }
+/ <TYPESPEC> _ {
+    printf( "[%s]", $4 );
+  }
+
+func_prototype_name <-
+  <IDENT> _ {
+    printf( "[%s]", $1 );
+  }
+
+func_prototype_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]", $1 );
+  }
+# End funcdecl
+
+## Begin import function
+import_func_declaration <-
+  import_func_begin _ import_func_specs? _ import_func_name _ import_func_parameters _
+    import_func_from _ import_func_as? _ {
+    printf( "\n" );
+  }
+
+import_func_begin <-
+  'import' _ 'func' {
+    printf( "IMPORTFUNC" );
+  }
+
+import_func_specs <-
+  <CALLSPEC> _ (<TYPESPEC / 'none'>) {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ (<TYPESPEC / 'none'>) _ <CALLSPEC> {
+    printf( "[%s %s]", $3, $4 );
+  }
+/ <CALLSPEC> {
+    printf( "[%s]", $5 );
+  }
+/ (<TYPESPEC / 'none'>) {
+    printf( "[%s]", $6 );
+  }
+
+import_func_name <-
+  <IDENT> {
+    printf( "[%s]", $1 );
+  }
+
+import_func_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]" );
+  }
+
+import_func_from <-
+  'from' _ <STRING> {
+    printf( "[from %s]", $1 );
+  }
+
+import_func_as <-
+  'as' _ <IDENT> {
+    printf( "[as %s]", $1 );
+  }
+# Emd import function
+
+## Begin func block
+func_block <-
+  func_begin _ func_none_specs _ func_name _ func_parameters (_
+    local_var_block)* (_ func_none_statement)* _ 'end' _ {
+    printf( "ENDFUNC\n" );
+  }
+/ func_begin _ func_specs _ func_name _ func_parameters (_
+    local_var_block)* (_ func_statement)* _ 'end' _ {
+    printf( "ENDFUNC\n" );
+  }
+
+func_begin <-
+  'func' _ {
+    printf( "FUNC" );
+  }
+
+func_none_specs <-
+  <'none'> _ <CALLSPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <CALLSPEC> _ {
+    printf( "[%s]", $3 );
+  }
+/ <'none'> _ {
+    printf( "[%s]", $4 );
+	}
+
+func_specs <-
+  <!'none' TYPESPEC> _ <CALLSPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <!'none' TYPESPEC> _ {
+		printf( "[%s]", $3 );
+  }
+
+func_name <-
+  <IDENT> _ {
+    printf( "[%s]", $1 );
+  }
+
+func_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]\n", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]\n" );
+  }
+
+func_none_statement <-
+  'return' {
+    printf( "RETURN\n" );
+  }
+/ statement
+
+func_statement <-
+  'return' _ <EXPR> {
+    printf( "RETURN[%s]\n", $1 );
+  }
+/ statement
+# End func block
+
+## Begin object ... end
+object_declaration <-
+  object_begin _ object_inherits? (_ object_member_declaration)* _ 'end' {
+    printf( "ENDOBJECT\n" );
+  }
+
+object_begin <-
+  'object' _ <IDENT> {
+    printf( "OBJECT[%s]\n", $1 );
+  }
+
+object_inherits <-
+  'inherits' _ <IDENT> {
+    printf( "INHERITS[%s]\n", $1 );
+  }
+
+object_member_declaration <-
+  &'end'
+/ 'mutable' {
+    printf( "MEMBERVAR[mutable]\n" );
+  }
+/ 'immutable' {
+    printf( "MEMBERVAR[immutable]\n" );
+  }
+/ <TYPESPEC> _ <IDENT> {
+    printf( "MEMBERVAR[%s %s]\n", $1, $2 );
+  }
+# End object ... end
+
+## Begin object constructor
+object_ctor_block <-
+  object_ctor_begin _ object_ctor_parameters (_ local_var_block)*
+    (_ object_ctor_statement)* _ 'end' _ {
+    printf( "ENDCONSTRUCTOR\n" );
+  }
+
+object_ctor_begin <-
+  'ctor' _ <IDENT> {
+    printf( "CONSTRUCTOR[%s]", $1 );
+  }
+
+object_ctor_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]\n", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]\n" );
+  }
+
+object_ctor_statement <-
+  'return' _ <EXPR> {
+    printf( "RETURN[%s]\n", $1 );
+  }
+/ statement
+# End object constructor
+
+## Begin object destructor
+object_dtor_block <-
+  object_dtor_begin _ object_dtor_parameters (_ local_var_block)*
+    (_ object_dtor_statement)* _ 'end' _ {
+    printf( "ENDDESTRUCTOR\n" );
+  }
+
+object_dtor_begin <-
+  'dtor' _ <IDENT> {
+    printf( "DESTRUCTOR[%s]", $1 );
+  }
+
+object_dtor_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]\n", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]\n" );
+  }
+
+object_dtor_statement <-
+  'return' _ <EXPR> {
+    printf( "RETURN[%s]\n", $1 );
+  }
+/ statement
+# End object destructor
+
+## Begin interface declaration block
+interface_block <-
+  interface_begin _ interface_implements? _ interface_inherits?
+    (_ interface_method_declaration)* _ 'end' {
+    printf( "ENDINTERFACE\n" );
+  }
+
+interface_begin <-
+  'interface' _ <IDENT> {
+    printf( "INTERFACE[%s]\n", $1 );
+  }
+
+interface_implements <-
+  'implements' _ <IDENT> {
+    printf( "IMPLEMENTS[%s]\n", $1 );
+  }
+
+interface_inherits <-
+  interface_inherits_begin _ interface_first_ancestor
+    (_ interface_next_ancestor)* _ {
+    printf( "]\n" );
+  }
+
+interface_inherits_begin <-
+  'inherits' {
+    printf( "INHERITS" );
+  }
+
+interface_first_ancestor <-
+  <IDENT> {
+    printf( "[%s", $1 );
+  }
+
+interface_next_ancestor <-
+  ',' _ <IDENT> {
+    printf( ", %s", $1 );
+  }
+
+interface_method_declaration <-
+  &'end'
+/ interface_method_declaration_begin _ interface_method_declaration_specs? _
+    interface_method_declaration_name _ interface_method_parameter_declaration _ {
+    printf( "\n" );
+  }
+/ interface_method_declaration_begin _ interface_method_declaration_specs? _
+    interface_method_declaration_name _ '(' _ ')' _ {
+    printf( "[()]\n" );
+  }
+
+interface_method_declaration_begin <-
+  'method' _ {
+    printf( "IFMETHOD" );
+  }
+
+interface_method_declaration_specs <-
+  <CALLSPEC> _ <TYPESPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <CALLSPEC> _ {
+    printf( "[%s]", $3 );
+  }
+/ <TYPESPEC> _ {
+    printf( "[%s]", $4 );
+  }
+
+interface_method_declaration_name <-
+  <IDENT> _ {
+    printf( "[%s]", $1 );
+  }
+
+interface_method_parameter_declaration <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]", $1 );
+  }
+# End interface declaration block
+
+## Begin method block
+method_block <-
+  method_begin _ method_none_specs _ method_name _ method_parameters (_
+    local_var_block)* (_ method_none_statement)* _ 'end' _ {
+    printf( "ENDMETHOD\n" );
+  }
+/ method_begin _ method_specs _ method_name _ method_parameters (_
+    local_var_block)* (_ method_statement)* _ 'end' _ {
+    printf( "ENDMETHOD\n" );
+  }
+
+method_begin <-
+  'method' _ {
+    printf( "METHOD" );
+  }
+
+method_none_specs <-
+  <'none'> _ <CALLSPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <CALLSPEC> _ {
+    printf( "[%s]", $3 );
+  }
+/ <'none'> _ {
+    printf( "[%s]", $4 );
+	}
+
+method_specs <-
+  <!'none' TYPESPEC> _ <CALLSPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <!'none' TYPESPEC> _ {
+		printf( "[%s]", $3 );
+  }
+
+method_name <-
+  <IDENT> _ '.' _ <IDENT> _ {
+    printf( "[%s.%s]", $1, $2 );
+  }
+
+method_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]\n", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]\n" );
+  }
+
+method_none_statement <-
+  'return' {
+    printf( "RETURN\n" );
+  }
+/ statement
+
+method_statement <-
+  'return' _ <EXPR> {
+    printf( "RETURN[%s]\n", $1 );
+  }
+/ statement
+# End method block
+
+## Begin unary block
+unary_block <-
+  unary_begin _ unary_name (_ local_var_block)*
+    (_ unary_statement)* _ 'end' {
+    printf( "ENDUNARY\n" );
+  }
+
+unary_begin <-
+  'unary' {
+    printf( "UNARY[unary" );
+  }
+
+unary_name <-
+  &'end'
+/ '++' _ <IDENT> { printf( "PreInc]\n" ); }
+/ '--' _ <IDENT> { printf( "PreDec]\n" ); }
+/ <IDENT> _ '++' { printf( "PostInc]\n" ); }
+/ <IDENT> _ '--' { printf( "PostDec]\n" ); }
+/ '+' _ <IDENT> { printf( "Pos]\n" ); }
+/ '-' _ <IDENT> { printf( "Neg]\n" ); }
+/ '~' _ <IDENT> { printf( "BitNot]\n" ); }
+/ '!' _ <IDENT> { printf( "Not]\n" ); }
+
+unary_statement <-
+  &'end'
+/ 'return' _ <EXPR> {
+    printf( "RETURN[%s]\n", $1 );
+  }
+/ statement
+# End unary block
+
+## Begin operator block
+operator_block <-
+  operator_begin _ operator_specs _ operator_name _ operator_parameters (_
+    local_var_block)* (_ operator_statement)* _ 'end' _ {
+    printf( "ENDOPERATOR\n" );
+  }
+
+operator_begin <-
+  'operator' _ {
+    printf( "OPERATOR" );
+  }
+
+operator_specs <-
+  <!'none' TYPESPEC> _ <CALLSPEC> _ {
+    printf( "[%s %s]", $1, $2 );
+  }
+/ <!'none' TYPESPEC> _ {
+    printf( "[%s]", $3 );
+  }
+
+operator_name <-
+  '+=' { printf( "[operAssignAdd]" ); }
+/ '-=' { printf( "[operAssignSub]" ); }
+/ '*=' { printf( "[operAssignMul]" ); }
+/ '/=' { printf( "[operAssignDiv]" ); }
+/ '%=' { printf( "[operAssignMod]" ); }
+/ '<<=' { printf( "[operAssignShl]" ); }
+/ '>>=' { printf( "[operAssignShr]" ); }
+/ '&=' { printf( "[operAssignBitAnd]" ); }
+/ '^=' { printf( "[operAssignBitXor]" ); }
+/ '|=' { printf( "[operAssignBitOr]" ); }
+/ '||' { printf( "[operLogicalOr]" ); }
+/ '&&' { printf( "[operLogicalAnd]" ); }
+/ '==' { printf( "[operEquals]" ); }
+/ '<=' { printf( "[operLessEq]" ); }
+/ '>=' { printf( "[operGreaterEq]" ); }
+/ "<<" { printf( "[operBitShl]" ); }
+/ ">>" { printf( "[operBitShr]" ); }
+/ '=' { printf( "[operAssignSet]" ); }
+/ '<' { printf( "[operLess]" ); }
+/ '>' { printf( "[operGreater]" ); }
+/ '|' { printf( "[operBitOr]" ); }
+/ '^' { printf( "[operBitXor]" ); }
+/ '&' { printf( "[operBitAnd]" ); }
+/ "+" { printf( "[operAdd]" ); }
+/ "-" { printf( "[operSub]" ); }
+/ "*" { printf( "[operMul]" ); }
+/ "/" { printf( "[operDiv]" ); }
+/ "%" { printf( "[operMod]" ); }
+
+operator_parameters <-
+  '(' _ <parameter_declarations> _ ')' {
+    printf( "[(%s)]\n", $1 );
+  }
+/ '(' _ ')' {
+    printf( "[()]\n" );
+  }
+
+operator_statement <-
+  &'end'
+/ 'return' _ <EXPR> {
+    printf( "RETURN[%s]\n", $1 );
+  }
+/ statement
+# End operator block
+
+## Begin run ... end
+run_block <-
+  run_begin (_ local_var_block)* (_ statement)* _ 'end' {
+    printf( "ENDRUN\n" );
+  }
+
+run_begin <-
+  'run' {
+    printf( "RUN\n" );
+  }
+# End run ... end
+
+## Begin statement
+statement <-
+  &'end'
+/ _ exit_statement _
+/ _ bind_statement _
+/ _ goto_statement _
+/ _ if_then_statement _
+/ _ if_block _
+/ _ for_in_loop _
+/ _ for_to_loop _
+/ _ for_downto_loop _
+/ _ repeat_loop _
+/ _ while_loop _
+/ _ mf_call _
+/ _ var_expr _
+/ _ ptr_expr _
+/ _ label_declaration _
+# End statement
+
+## Begin statement
+loop_statement <-
+  &'end'
+/ _ loop_if_then_statement _
+/ _ loop_if_block _
+/ _ break_statement _
+/ _ next_statement _
+/ statement
+# End statement
+
+## Begin exit statement
+exit_statement <-
+  _ 'exit' _ '(' _ <EXPR> _ ')' _ {
+    printf( "EXIT[%s]\n", $1 );
+  }
+# End exit statement
+
+## Begin label declaration
+label_declaration <-
+  <IDENT> _ ':' {
+    printf( "LABEL[%s]\n", $1 );
+  }
+# End label declaration
+
+## Begin goto statement
+goto_statement <-
+  'goto' _ <IDENT> {
+    printf( "GOTO[%s]\n", $1 );
+  }
+# End goto statement
+
+## Begin bind statement
+bind_statement <-
+  bind_begin _ '(' _ bind_object _ ',' _ bind_first (_ bind_next)* _ ')' _ {
+    printf( ")]\n" );
+  }
+
+bind_begin <-
+  'bind' {
+    printf( "BIND[(" );
+  }
+
+bind_object <-
+  <QUALIFIEDIDENT> {
+    printf( "%s, ", $1 );
+  }
+
+bind_first <-
+  <QUALIFIEDIDENT> {
+    printf( "%s", $1 );
+  }
+
+bind_next <-
+  ',' _ <QUALIFIEDIDENT> {
+    printf( ", %s", $1 );
+  }
+# End bind statement
+
+## Begin if ... then ... statement
+if_then_statement <-
+  if_then_begin _ 'then' _ statement
+
+if_then_begin <-
+  'if' _ <EXPR> {
+    printf( "IF[%s] THEN ", $1 );
+  }
+# End if ... then ... statement
+
+## Begin if ... elseif ... else ... endif block
+if_block <-
+  if_begin (_ statement)* (_ if_elseif (_ statement)*)*
+    (_ if_else (_ statement)*)* _ 'endif' {
+    printf( "ENDIF\n" );
+  }
+
+if_begin <-
+  'if' _ <EXPR> {
+    printf( "IF[%s]\n", $1 );
+  }
+
+if_elseif <-
+  'elseif' _ <EXPR> {
+    printf( "ELSEIF[%s]\n", $1 );
+  }
+
+if_else <-
+  'else' {
+    printf( "ELSE\n" );
+  }
+# End if ... elseif ... else ... endif block
+
+## Begin loop variation of if ... then ... statement
+loop_if_then_statement <-
+  loop_if_then_begin _ 'then' _ loop_statement
+
+loop_if_then_begin <-
+  'if' _ <EXPR> {
+    printf( "IF[%s] THEN ", $1 );
+  }
+# End loop variation of if ... then ... statement
+
+## Begin loop variation of if ... elseif ... else ... endif block
+loop_if_block <-
+  loop_if_begin (_ loop_statement)* (_ loop_if_elseif
+    (_ loop_statement)*)* (_ loop_if_else (_ loop_statement)*)*
+    _ 'endif' {
+    printf( "ENDIF\n" );
+  }
+
+loop_if_begin <-
+  'if' _ <EXPR> {
+    printf( "IF[%s]\n", $1 );
+  }
+
+loop_if_elseif <-
+  'elseif' _ <EXPR> {
+    printf( "ELSEIF[%s]\n", $1 );
+  }
+
+loop_if_else <-
+  'else' {
+    printf( "ELSE\n" );
+  }
+# End loop variation of if ... elseif ... else ... endif block
+
+## Begin for ... in ... statement
+for_in_loop <-
+  for_in_begin _ for_in_data (_ for_in_statement)* _ 'endfor' {
+    printf( "ENDFOR\n" );
+  }
+
+for_in_begin <-
+  <IDENT> _ ':' _ 'for' _ <IDENT> {
+    printf( "%s:FOR[%s", $1, $2 );
+  }
+/ 'for' _ <IDENT> {
+    printf( "FOR[%s", $3 );
+  }
+
+for_in_data <-
+  'in' _ '[' _ <EXPR (_ ',' _ EXPR)*> _ ']' {
+    printf( " in [%s]]\n", $1 );
+  }
+
+for_in_statement <-
+  &'endfor'
+/ loop_statement
+# End for ... in ... statement
+
+## Begin for ... to ... statement
+for_to_loop <-
+  for_to_begin _ for_to_range (_ for_to_statement)* _ 'endfor' {
+    printf( "ENDFOR\n" );
+  }
+
+for_to_begin <-
+  <IDENT> _ ':' _ 'for' _ <IDENT> {
+    printf( "%s:FOR[%s", $1, $2 );
+  }
+/ 'for' _ <IDENT> {
+    printf( "FOR[%s", $3 );
+  }
+
+for_to_range <-
+  '=' _ <EXPR> _ 'to' _ <EXPR> {
+    printf( "= %s to %s]\n", $1, $2 );
+  }
+
+for_to_statement <-
+  &'endfor'
+/ loop_statement
+# End for ... to ... statement
+
+## Begin for ... downto ... statement
+for_downto_loop <-
+  for_downto_begin _ for_downto_range (_ for_downto_statement)* _ 'endfor' {
+    printf( "ENDFOR\n" );
+  }
+
+for_downto_begin <-
+  <IDENT> _ ':' _ 'for' _ <IDENT> {
+    printf( "%s:FOR[%s", $1, $2 );
+  }
+/ 'for' _ <IDENT> {
+    printf( "FOR[%s", $3 );
+  }
+
+for_downto_range <-
+  '=' _ <EXPR> _ 'downto' _ <EXPR> {
+    printf( "= %s to %s]\n", $1, $2 );
+  }
+
+for_downto_statement <-
+  &'endfor'
+/ loop_statement
+# End for ... downto ... statement
+
+## Begin repeat ... when statement
+repeat_loop <-
+  repeat_begin (_ repeat_statement)* _ repeat_end {
+  }
+
+repeat_begin <-
+  <IDENT> _ ':' _ 'repeat' {
+    printf( "%s:REPEAT\n", $1 );
+  }
+/ 'repeat' {
+    printf( "REPEAT\n" );
+  }
+
+repeat_end <-
+  'when' _ <EXPR> {
+    printf( "WHEN[%s]\n", $1 );
+  }
+
+repeat_statement <-
+  &'when'
+/ loop_statement
+# End repeat ... when statement
+
+## Begin while ... endwhile statement
+while_loop <-
+  while_begin (_ when_statement)* _ 'endwhile' {
+    printf( "ENDWHILE\n" );
+  }
+
+while_begin <-
+  <IDENT> _ ':' _ 'while' _ <EXPR> {
+    printf( "%s:WHILE[%s]\n", $1, $2 );
+  }
+/ 'while' _ <EXPR> {
+    printf( "WHILE[%s]\n", $3 );
+  }
+
+when_statement <-
+  &'endwhile'
+/ loop_statement
+# End while ... endwhile statement
+
+## Begin variable expression statement
+# Being specific as a workaround, until there's a better way
+var_expr <-
+  <var_subexpr> {
+    printf( "VAREXPR[%s]\n", $1 );
+  }
+
+var_subexpr <-
+  QUALIFIEDIDENT _ ASSIGNOP _ EXPR
+/ ('++' / '--') _ QUALIFIEDIDENT _ ('++' / '--') _ ASSIGNOP _ EXPR
+/ ('++' / '--') _ QUALIFIEDIDENT _ ASSIGNOP _ EXPR
+/ QUALIFIEDIDENT _ ('++' / '--') _ ASSIGNOP _ EXPR
+/ ('++' / '--') _ QUALIFIEDIDENT _ ('++' / '--')
+/ ('++' / '--') _ QUALIFIEDIDENT
+/ QUALIFIEDIDENT _ ('++' / '--')
+# End statement
+
+## Begin method/function call
+mf_call <-
+  _ <QUALIFIEDIDENT _ '(' _ (EXPR (_ ',' _ EXPR)*)* _ ')'> _ {
+    printf( "MFCALL[%s]\n", $1 );
+  }
+# End method/function call
+
+## Begin pointer expression statement
+# Being specific as a workaround, until there's a better way
+ptr_expr <-
+  <ptr_subexpr> {
+    printf( "PTREXPR[%s]\n", $1 );
+  }
+
+ptr_subexpr <-
+  '@' _ QUALIFIEDIDENT _ ASSIGNOP _ EXPR
+/ ('++' / '--') _ '@' _ QUALIFIEDIDENT _ ('++' / '--') _ ASSIGNOP _ EXPR
+/ ('++' / '--') _ '@' _ QUALIFIEDIDENT _ ASSIGNOP _ EXPR
+/ '@' _ QUALIFIEDIDENT _ ('++' / '--') _ ASSIGNOP _ EXPR
+/ ('++' / '--') _ '@' _ QUALIFIEDIDENT _ ('++' / '--')
+/ ('++' / '--') _ '@' _ QUALIFIEDIDENT
+/ '@' _ QUALIFIEDIDENT _ ('++' / '--')
+# End pointer expression statement
+
+## Begin break statement
+break_statement <-
+  'break' {
+    printf( "BREAK\n" );
+  }
+# End break statement
+
+## Begin next statement
+next_statement <-
+  'next' {
+    printf( "NEXT\n" );
+  }
+# End next statement
+
+## Begin call spec
+CALLSPEC <- 'cdecl' / 'stdcall'
+# End call spec
+
+## Begin type spec
+TYPESPEC <-
+  '@' _ (SIMPLETYPE / 'any') _ '[' _ ']'
+/ '@' _ (SIMPLETYPE / 'any') _ '[' _ <CONSTEXPR> _ ']'
+/ '@' _ (SIMPLETYPE / 'any')
+/ SIMPLETYPE _ '[' _ <CONSTEXPR> _ ']'
+/ SIMPLETYPE
+
+SIMPLETYPE <-
+  BASETYPE
+
+BASETYPE <-
+  'int8' / 'int16' / 'int32' / 'int64' / 'int'
+/ 'uint8' / 'uint16' / 'uint32' / 'uint64' / 'uint'
+/ 'char' / 'bool' / 'size' / 'fsize'
+/ (!'any' TYPENAME)
+/ (!'none' TYPENAME)
+# End type spec
+
+## Begin runtime expression
+EXPR <-
+  SUBEXPR
+
+SUBEXPR <-
+  LOGICALOR
+
+LOGICALOR <-
+  LOGICALOR _ '||' _ LOGICALAND
+/ LOGICALAND
+
+LOGICALAND <-
+  LOGICALAND _ '&&' _ BITOR
+/ BITOR
+
+BITOR <-
+  BITOR _ '|' _ BITXOR
+/ BITXOR
+
+BITXOR <-
+  BITXOR _ '^' _ BITAND
+/ BITAND
+
+BITAND <-
+  BITAND _ '&' _ EQUALS
+/ EQUALS
+
+EQUALS <-
+  EQUALS _ ('==' / '!=') _ COMPARE
+/ COMPARE
+
+COMPARE <-
+  COMPARE _ ('<=' / '>=' / '<' / '>') _ SHIFT
+/ SHIFT
+
+SHIFT <-
+  SHIFT _ ('<<' / '>>') _ TERM
+/ TERM
+
+TERM <-
+  TERM _ ('+' / '-') _ FACTOR
+/ FACTOR
+
+FACTOR <-
+  FACTOR _ ('*' / '/' / '%') _ UNARYOP
+/ UNARYOP
+
+UNARYOP <-
+  ('+' / '-' / '~' / '!') _ UNARYOP
+/ OPERAND
+
+###TODO: Add array dereferences to qualified identifiers
+OPERAND <-
+  INTNUM
+/ QUALIFIEDIDENT _ '(' _ SUBEXPR _ ')'
+/ '++' _ '@' _ QUALIFIEDIDENT _ '++'
+/ '++' _ '@' _ QUALIFIEDIDENT _ '--'
+/ '--' _ '@' _ QUALIFIEDIDENT _ '++'
+/ '--' _ '@' _ QUALIFIEDIDENT _ '--'
+/ '++' _ '@' _ QUALIFIEDIDENT
+/ '--' _ '@' _ QUALIFIEDIDENT
+/ '++' _ QUALIFIEDIDENT _ '++'
+/ '++' _ QUALIFIEDIDENT _ '--'
+/ '--' _ QUALIFIEDIDENT _ '++'
+/ '--' _ QUALIFIEDIDENT _ '--'
+/ '++' _ QUALIFIEDIDENT
+/ '--' _ QUALIFIEDIDENT
+/ QUALIFIEDIDENT _ '++'
+/ QUALIFIEDIDENT _ '--'
+/ QUALIFIEDIDENT
+/ '(' _ SUBEXPR _ ')'
+# End runtime expression
+
+## Begin constant expression
+CONSTEXPR <-
+  CONSTSUBEXPR
+
+CONSTSUBEXPR <-
+  CONSTLOGICALOR
+
+CONSTLOGICALOR <-
+  CONSTLOGICALOR _ '||' _ CONSTLOGICALAND
+/ CONSTLOGICALAND
+
+CONSTLOGICALAND <-
+  CONSTLOGICALAND _ '&&' _ CONSTBITOR
+/ CONSTBITOR
+
+CONSTBITOR <-
+  CONSTBITOR _ '|' _ CONSTBITXOR
+/ CONSTBITXOR
+
+CONSTBITXOR <-
+  CONSTBITXOR _ '^' _ CONSTBITAND
+/ CONSTBITAND
+
+CONSTBITAND <-
+  CONSTBITAND _ '&' _ CONSTEQUALS
+/ CONSTEQUALS
+
+CONSTEQUALS <-
+  CONSTEQUALS _ ('==' / '!=') _ CONSTCOMPARE
+/ CONSTCOMPARE
+
+CONSTCOMPARE <-
+  CONSTCOMPARE _ ('<' / '<=' / '>' / '>=') _ CONSTSHIFT
+/ CONSTSHIFT
+
+CONSTSHIFT <-
+  CONSTSHIFT _ ('<<' / '>>') _ CONSTTERM
+/ CONSTTERM
+
+CONSTTERM <-
+  CONSTTERM _ ('+' / '-') _ CONSTFACTOR
+/ CONSTFACTOR
+
+CONSTFACTOR <-
+  CONSTFACTOR _ ('*' / '/' / '%') _ CONSTUNARYOP
+/ CONSTUNARYOP
+
+CONSTUNARYOP <-
+  ('+' / '-' / '~' / '!') _ CONSTUNARYOP
+/ CONSTOPERAND
+
+###TODO: Add array dereferences to qualified identifiers
+CONSTOPERAND <-
+  INTNUM
+/ QUALIFIEDIDENT _ '(' _ SUBEXPR _ ')'
+/ (('++' / '--' / '@') _)? QUALIFIEDIDENT (_ ('++'/'--'))?
+/ '(' _ CONSTSUBEXPR _ ')'
+# End constant expression
+
+## Begin expression tokens
+INTNUM <-
+  '0b'[0-1][_0-1]*
+/ '0o'[0-7][_0-7]*
+/ '0x'[0-9a-fA-F][_0-9a-fA-F]*
+/ [0-9][_0-9]*
+# End expression tokens
+
+## Begin tokens
+STRING <-
+  "'" (!"'" .)* "'"
+/ '"' (!'"' .)* '"'
+
+# TYPENAME must be in the symbol table
+TYPENAME <- [_a-zA-Z][_a-zA-Z0-9]* {
+}
+
+QUALIFIEDIDENT <-
+  FIRST_QUALIFIEDIDENT (_ NEXT_QUALIFIEDIDENT)*
+
+FIRST_QUALIFIEDIDENT <-
+  <IDENT> {
+  }
+
+NEXT_QUALIFIEDIDENT <-
+  '.' _ <IDENT> {
+  }
+
+IDENT <- [_a-zA-Z][_a-zA-Z0-9]*
+
+_ <- (NONTERMINAL / MLCOMMENT / SLCOMMENT)*
+
+NONTERMINAL <- [ \t\r\n]
+
+MLCOMMENT <- '/*' (!'*/' .)* '*/'
+SLCOMMENT <- '//' (!EOL .)* EOL
+
+ASSIGNOP <-
+  '=' / '+=' / '-=' / '*=' / '/=' / '%='
+  / '<<=' / '>>=' / '&=' / '^=' / '|='
+
+EOL <- '\r\n' / '\r' / '\n'
+
+EOF <- !.
+# End tokens
+
+%%
+
+void PrintBanner() {
+  printf( "OrigoToC %s (0x%.8X)\n%s\n\n",
+    ORIGOTOC_VERSTRING, ORIGOTOC_VERSION, ORIGOTOC_COPYRIGHT );
+}
+
+void Usage() {
+  printf( "usage: origotoc source[.ret] [binary.exe]\n" );
+}
+
+int ParseOptions( OrigoOptions* toOptionsVar ) {
+  char* sourceDir = NULL;
+  char* sourceBaseName = NULL;
+  char* sourceExt = NULL;
+  char* binaryDir = NULL;
+  char* binaryBaseName = NULL;
+  char* binaryExt = NULL;
+  char* sourceFileName = NULL;
+  char* cFileName = NULL;
+  char* hFileName = NULL;
+  char* binaryFileName = NULL;
+  int result = 0;
+  int errorResult = 0;
+
+  // Validate parameters
+  if( argc <= 1 ) {
+    Usage();
+    exit(1);
+  }
+
+  if( toOptionsVar == NULL ) { return 1; }
+
+  // Parse Origo file name
+  result = SplitPath(argv[1], &sourceDir, &sourceBaseName, &sourceExt);
+  if( result != 0 ) { return 2; }
+
+  // Parse .c, .h, and binary file names
+  if( argc <= 2 ) {
+    if( sourceDir ) {
+      binaryDir = strdup(sourceDir);
+      if( binaryDir == NULL ) {
+        errorResult = 3;
+        goto ExitError;
+      }
+    }
+
+    if( sourceBaseName ) {
+      binaryBaseName = strdup(sourceBaseName);
+      if( binaryBaseName == NULL ) {
+        errorResult = 4;
+        goto ExitError;
+      }
+    }
+
+    if( sourceExt == NULL ) {
+      sourceExt = strdup(".ret");
+      if( sourceExt == NULL ) {
+        errorResult = 5;
+        goto ExitError;
+      }
+    }
+
+    binaryExt = strdup(".exe");
+    if( binaryExt == NULL ) {
+      errorResult = 6;
+      goto ExitError;
+    }
+  } else {
+    result = SplitPath(argv[2], &binaryDir, &binaryBaseName, &binaryExt);
+    if( result != 0 ) {
+      errorResult = 7;
+      goto ExitError;
+    }
+  }
+
+  // Create file names
+  result = JoinPath(sourceDir, sourceBaseName, sourceExt, &sourceFileName);
+  if( result || (sourceFileName == NULL) ) {
+    errorResult = 8;
+    goto ExitError;
+  }
+
+  result = JoinPath(binaryDir, binaryBaseName, ".rtc", &cFileName);
+  if( result || (cFileName == NULL) ) {
+    errorResult = 9;
+    goto ExitError;
+  }
+
+  result = JoinPath(binaryDir, binaryBaseName, ".rth", &hFileName);
+  if( result || (hFileName == NULL) ) {
+    errorResult = 10;
+    goto ExitError;
+  }
+
+  result = JoinPath(binaryDir, binaryBaseName, binaryExt, &binaryFileName);
+  if( result || (binaryFileName == NULL) ) {
+    errorResult = 11;
+    goto ExitError;
+  }
+
+  toOptionsVar->sourceFileName = sourceFileName;
+  toOptionsVar->cFileName = cFileName;
+  toOptionsVar->hFileName = hFileName;
+  toOptionsVar->binaryFileName = binaryFileName;
+
+  // Release temporary path components
+  FreePtr( &sourceDir );
+  FreePtr( &sourceBaseName );
+  FreePtr( &sourceExt );
+  FreePtr( &binaryDir );
+  FreePtr( &binaryBaseName );
+  FreePtr( &binaryExt );
+  return 0;
+
+ExitError:
+  // Release temporary path components
+  FreePtr( &sourceDir );
+  FreePtr( &sourceBaseName );
+  FreePtr( &sourceExt );
+  FreePtr( &binaryDir );
+  FreePtr( &binaryBaseName );
+  FreePtr( &binaryExt );
+  // Release the joined file paths that succeeded
+  FreePtr( &sourceFileName );
+  FreePtr( &cFileName );
+  FreePtr( &hFileName );
+  FreePtr( &binaryFileName );
+  return errorResult;
+}
+
+ParseState parseState = {};
+
+void Cleanup() {
+  // Release memory used by symbol tables
+  FreeSymTable( &symTable );
+  FreeSymTable( &localTable );
+
+  // Release memory used by parse states
+  FreeEnumFieldTable( &enumFieldTable );
+
+  // Release memory used by options
+  FreePtr( &options.sourceFileName );
+  FreePtr( &options.cFileName );
+  FreePtr( &options.hFileName );
+  FreePtr( &options.binaryFileName );
+
+  // Close source file
+  CloseFile( &parseState.source.handle );
+}
+
+int main( int paramArgc, char* paramArgv[] ) {
+  int result = 0;
+
+  argc = paramArgc;
+  argv = paramArgv;
+
+  atexit( Cleanup );
+
+  PrintBanner();
+
+  result = ParseOptions(&options);
+  if( result != 0 ) { Error(result, "main > ParseOptions" ); }
+
+  parseState.source.handle = fopen(options.sourceFileName, "r");
+  if( parseState.source.handle == NULL ) {
+    printf( "Error opening '%s'\n", options.sourceFileName );
+    exit(1);
+  } else {
+    printf( "Translating '%s' to C...\n", options.sourceFileName );
+  }
+
+  pcc_context_t *ctx = pcc_create(&parseState);
+
+  while( pcc_parse(ctx, NULL) ) {
+  };
+
+  pcc_destroy( ctx );
+
+  return 0;
+}
