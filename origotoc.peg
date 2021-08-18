@@ -1,7 +1,7 @@
 #
 # MIT License
 #
-# OrigoToC 0.2.0 Alpha
+# OrigoToC 0.2.1 Alpha
 # Copyright (c) 2014-2021 Orlando Llanes
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -44,8 +44,8 @@
   #define PATCHVEREXT(version) (((version) >> 4) & 0x0FFF)
   #define RELEASETYPEEXT(version) ((version) & 0x000F)
 
-  #define ORIGOTOC_VERSION MAKEVEREXT(0, 2, 0, ALPHA_RELEASE)
-  #define ORIGOTOC_VERSTRING "0.2.0 Alpha"
+  #define ORIGOTOC_VERSION MAKEVEREXT(0, 2, 1, ALPHA_RELEASE)
+  #define ORIGOTOC_VERSTRING "0.2.1 Alpha"
   #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
   // End version format declarations
 
@@ -1162,6 +1162,12 @@
   /// Begin parse state auxil declarations
   typedef struct SourceFile {
     FILE* handle;
+
+    unsigned line;
+    unsigned column;
+
+    unsigned nextLine;
+    unsigned nextColumn;
   } SourceFile;
 
   typedef struct ParseState {
@@ -1197,13 +1203,43 @@
 
   /// Begin PCC_GETCHAR override
   int ReadChar( ParseState* auxil ) {
+    int ch = EOF;
+
     if( auxil && auxil->source.handle ) {
-      return fgetc(auxil->source.handle);
+      auxil->source.line = auxil->source.nextLine;
+      auxil->source.column = auxil->source.nextColumn;
+
+      ch = fgetc(auxil->source.handle);
+
+      if( ch == '\r' ) {
+        ch = fgetc(auxil->source.handle);
+      }
+
+      auxil->source.nextColumn++;
+
+      if( ch == '\n' ) {
+        auxil->source.nextLine++;
+        auxil->source.nextColumn = 1;
+      }
     }
-    return EOF;
+
+    return ch;
   }
   #define PCC_GETCHAR(auxil) ReadChar(auxil);
   // End PCC_GETCHAR override
+
+  /// Begin PCC_ERROR override
+  void ParseError( ParseState* auxil ) {
+    if( auxil ) {
+      printf( "Syntax Error[L%u,C%u]\n",
+        auxil->source.line, auxil->source.column );
+    } else {
+      printf( "Parse Error\n" );
+    }
+    exit(1);
+  }
+  #define PCC_ERROR(auxil) ParseError(auxil)
+  // End PCC_ERROR override
 
   /// Begin warning/error functions
   void Error( unsigned ofCode, const char* withMessage ) {
@@ -2818,6 +2854,11 @@ int main( int paramArgc, char* paramArgv[] ) {
   } else {
     printf( "Translating '%s' to C...\n", options.sourceFileName );
   }
+
+  parseState.source.line = 1;
+  parseState.source.column = 1;
+  parseState.source.nextLine = 1;
+  parseState.source.nextColumn = 1;
 
   pcc_context_t *ctx = pcc_create(&parseState);
 
