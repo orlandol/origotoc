@@ -45,7 +45,8 @@ funcdecl int Func4( int param1, size param2 )
 funcdecl int Func5( int param1, size param2, fsize param3 )
 
 type uint UINT
-import func none ExitProcess( UINT uExitCode ) from "kernel32.dll"
+import func none ExitProcess( UINT uExitCode )
+  from "kernel32.dll"
 
 func none Func1()
   var

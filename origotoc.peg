@@ -1,7 +1,7 @@
 #
 # MIT License
 #
-# OrigoToC 0.2.1 Alpha
+# OrigoToC 0.2.2 Alpha
 # Copyright (c) 2014-2021 Orlando Llanes
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -44,8 +44,8 @@
   #define PATCHVEREXT(version) (((version) >> 4) & 0x0FFF)
   #define RELEASETYPEEXT(version) ((version) & 0x000F)
 
-  #define ORIGOTOC_VERSION MAKEVEREXT(0, 2, 1, ALPHA_RELEASE)
-  #define ORIGOTOC_VERSTRING "0.2.1 Alpha"
+  #define ORIGOTOC_VERSION MAKEVEREXT(0, 2, 2, ALPHA_RELEASE)
+  #define ORIGOTOC_VERSTRING "0.2.2 Alpha"
   #define ORIGOTOC_COPYRIGHT "Copyright (C) 2014-2021 Orlando Llanes"
   // End version format declarations
 
@@ -2353,7 +2353,7 @@ for_to_begin <-
 
 for_to_range <-
   '=' _ <EXPR> _ 'to' _ <EXPR> {
-    printf( "= %s to %s]\n", $1, $2 );
+    printf( " = %s to %s]\n", $1, $2 );
   }
 
 for_to_statement <-
@@ -2377,7 +2377,7 @@ for_downto_begin <-
 
 for_downto_range <-
   '=' _ <EXPR> _ 'downto' _ <EXPR> {
-    printf( "= %s to %s]\n", $1, $2 );
+    printf( " = %s downto %s]\n", $1, $2 );
   }
 
 for_downto_statement <-
